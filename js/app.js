@@ -25,9 +25,9 @@ function showError(text) { error.textContent = text; error.hidden = !text; }
 function scrollDown() { thread.scrollTop = thread.scrollHeight; }
 function renderList() {
   const list = $('conversations'); list.replaceChildren();
-  chats.forEach(chat => {
+  chats.filter(chat => chat.messages.length > 0).forEach(chat => {
     const button = document.createElement('button');
-    button.type = 'button'; recentLabel(button, chat.title || 'New chat');
+    button.type = 'button';     const firstUser = chat.messages.find(m => m.role === 'user' && typeof m.content === 'string');     const title = (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';     recentLabel(button, title.length > 42 ? title.slice(0, 42) + '…' : title);
     button.className = chat.id === current.id ? 'active' : '';
     button.disabled = busy;
     button.onclick = () => { current = chat; showError(''); menu(false); render(); };
@@ -65,7 +65,7 @@ $('composer').addEventListener('submit', async e => {
   busy = true; $('send').disabled = true; showError('');
   const first = !current.messages.length;
   current.messages.push({ role: 'user', content: text });
-  if (first) current.title = text.slice(0, 42);
+  if (first) current.title = text.slice(0, 42);   save();
   input.value = ''; input.style.height = 'auto'; render();
   const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
