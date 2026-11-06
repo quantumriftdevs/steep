@@ -1,3 +1,4 @@
+import { setupProfile, recentLabel } from './sidebar.js';
 import { loadChats, saveChats, newChat } from './store.js';
 import { bubble, animate } from './messages.js'; import { checkConnection } from './status.js'; import { setupGreeting } from './greet.js';
 
@@ -26,7 +27,7 @@ function renderList() {
   const list = $('conversations'); list.replaceChildren();
   chats.forEach(chat => {
     const button = document.createElement('button');
-    button.type = 'button'; button.textContent = chat.title || 'New chat';
+    button.type = 'button'; recentLabel(button, chat.title || 'New chat');
     button.className = chat.id === current.id ? 'active' : '';
     button.disabled = busy;
     button.onclick = () => { current = chat; showError(''); menu(false); render(); };
@@ -82,4 +83,4 @@ $('composer').addEventListener('submit', async e => {
     busy = false; $('send').disabled = false; render();
   }
 });
-checkConnection(); render(true);
+setupProfile(); checkConnection(); render(true);
