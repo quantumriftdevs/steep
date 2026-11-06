@@ -6,3 +6,17 @@
 @keyframes cursor-blink{50%{opacity:.2}}
 @keyframes chat-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.agent-cursor{display:none}.examples button,.message,#conversations button,.typing::after,.streaming::after{animation:none;transition:none}}
+.empty{align-items:center;text-align:center;min-height:55vh}
+.empty-mark{background:transparent;color:var(--amber);width:48px;height:48px;animation:chat-rise .7s ease both}
+.empty-mark svg{width:48px;height:48px}
+.empty h1{margin:20px 0 0}
+.examples{justify-content:center}
+.name-form{margin-top:20px;color:var(--muted);font-size:13px}
+.name-form[hidden]{display:none}
+.name-form label{display:block;margin-bottom:7px}
+.name-form div{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.name-form input{width:170px;max-width:100%;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink);padding:8px 12px;font:16px 'Hanken Grotesk',sans-serif}
+.name-form button{border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--dark);padding:8px 12px}
+.name-form .name-skip{border:0;background:transparent;color:var(--muted)}
+.composer textarea{font-size:16px}
+@media(prefers-reduced-motion:reduce){.empty-mark{animation:none}}
