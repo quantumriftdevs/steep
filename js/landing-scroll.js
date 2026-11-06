@@ -42,6 +42,6 @@
    setTimeout(()=>{if(['queued','dragging'].includes(e.dataset.scrollState)){reveal(e);queue=queue.filter(x=>x!==e);moving=moving.filter(m=>{if(m.el===e){m.ghost.remove();return false}return true})}},2500+targets.length*(touch?360:400));
   }}if(queue.length)schedule()});
   targets.filter(e=>e.dataset.scrollState==='pending').forEach(e=>observer.observe(e));
-  addEventListener('scroll',()=>{const y=scrollY;dir=Math.sign(y-prev);prev=y;if(dir<0){queue.forEach(reveal);queue=[]}schedule()},{passive:true});
+  addEventListener('scroll',()=>{const y=scrollY;dir=Math.sign(y-prev);prev=y;if(dir<0){queue.forEach(reveal);queue=[]}else{const off=e=>{const r=e.getBoundingClientRect();return r.bottom<=0||r.top>=innerHeight};queue=queue.filter(e=>{if(off(e)){reveal(e);return false}return true});moving=moving.filter(m=>{if(off(m.el)){m.ghost.remove();reveal(m.el);return false}return true})}schedule()},{passive:true});
  }catch(e){rescue()}
 })();
