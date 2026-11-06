@@ -1,13 +1,10 @@
-.agent-cursor{position:fixed;z-index:10;width:4px;height:22px;border-radius:4px;background:var(--amber);pointer-events:none;transform:translateY(-50%);transition:left .45s ease,top .45s ease;animation:cursor-blink .8s step-end infinite}
-.examples button{transition:opacity .35s ease,transform .35s ease}
-.examples button.anim-hidden{opacity:0;transform:scale(.82)}
 .message,#conversations button{animation:chat-rise .45s ease both}
 .typing::after,.streaming::after{content:'';display:inline-block;width:3px;height:1em;border-radius:3px;background:var(--amber);vertical-align:-.1em;margin-left:3px;animation:cursor-blink .8s step-end infinite}
 @keyframes cursor-blink{50%{opacity:.2}}
 @keyframes chat-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@media(prefers-reduced-motion:reduce){.agent-cursor{display:none}.examples button,.message,#conversations button,.typing::after,.streaming::after{animation:none;transition:none}}
+@media(prefers-reduced-motion:reduce){.message,#conversations button,.typing::after,.streaming::after{animation:none;transition:none}}
 .empty{align-items:center;text-align:center;min-height:55vh}
-.empty-mark{background:transparent;color:var(--amber);width:48px;height:48px;animation:chat-rise .7s ease both}
+.empty-mark{background:transparent;color:var(--amber);width:48px;height:48px}
 .empty-mark svg{width:48px;height:48px}
 .empty h1{margin:20px 0 0}
 .examples{justify-content:center}
@@ -19,6 +16,4 @@
 .name-form button{border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--dark);padding:8px 12px}
 .name-form .name-skip{border:0;background:transparent;color:var(--muted)}
 .composer textarea{font-size:16px}
-@media(prefers-reduced-motion:reduce){.empty-mark{animation:none}}
-
 .streaming p:last-child{display:inline}
