@@ -3,7 +3,7 @@ const KEY = 'steep-conversations-v1';
 export function loadChats() {
   try {
     const chats = JSON.parse(localStorage.getItem(KEY) || '[]');
-    return Array.isArray(chats) ? chats.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages)) : [];
+    if (!Array.isArray(chats)) return [];     const empty = c => c && Array.isArray(c.messages) && c.messages.length === 0;     if (chats.some(empty)) {       try { localStorage.setItem(KEY, JSON.stringify(chats.filter(c => !empty(c)))); } catch {}     }     return chats.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages) && c.messages.length > 0);
   } catch {
     return [];
   }
@@ -11,7 +11,7 @@ export function loadChats() {
 
 export function saveChats(chats) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(chats));
+    localStorage.setItem(KEY, JSON.stringify(chats.filter(c => c.messages.length > 0)));
     return true;
   } catch {
     return false;
