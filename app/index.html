@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat with Steep</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <button class="scrim" id="scrim" aria-label="Close conversation menu" hidden></button>
+    <aside class="sidebar" id="sidebar" aria-label="Conversations">
+      <div class="side-top"><a class="brand" href="/">steep<span>.</span></a><button id="close-menu" class="icon mobile" aria-label="Close menu">×</button></div>
+      <button id="new-chat" class="new-chat">＋ <span>New chat</span></button>
+      <p class="side-label">YOUR CONVERSATIONS</p>
+      <nav id="conversations" aria-label="Chat history"></nav>
+      <p class="side-foot">A little clarity for the creator grind.</p>
+    </aside>
+    <main class="workspace">
+      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false">☰</button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection" role="status">Checking connection…</span></header>
+      <div id="thread" class="thread" aria-live="polite">
+        <div class="thread-inner" id="messages"></div>
+      </div>
+      <div class="composer-wrap">
+        <p id="error" class="error" role="alert" hidden></p>
+        <form id="composer" class="composer"><label class="sr-only" for="prompt">Message Steep</label><textarea id="prompt" rows="1" maxlength="12000" placeholder="Ask Steep anything…" required></textarea><button id="send" type="submit" aria-label="Send message">↑</button></form>
+        <p class="disclaimer">Steep can make mistakes. Check current TikTok rules before acting.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
