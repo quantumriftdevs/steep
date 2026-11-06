@@ -1,0 +1,5 @@
+.hero.reveal{animation:none}
+.intro-agent{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;will-change:transform}
+.intro-agent svg{display:block;filter:drop-shadow(0 1px 2px #000)}
+.intro-agent span{position:absolute;left:15px;top:15px;padding:3px 5px;background:#f33d32;color:#111;font:9px monospace;white-space:nowrap}
+@media print{.intro-agent{display:none}}
