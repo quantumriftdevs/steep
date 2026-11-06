@@ -83,6 +83,6 @@ $('composer').addEventListener('submit', async e => {
   }
 });
 fetch('/api/status', { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => {
-  $('connection').textContent = data.connected ? '● Key configured' : '○ Not connected';
-}).catch(() => { $('connection').textContent = '○ Connection unknown'; });
+  $('connection').innerHTML = data.connected ? '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg> Key configured' : '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg> Not connected';
+}).catch(() => { $('connection').innerHTML = '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg> Connection unknown'; });
 render();
