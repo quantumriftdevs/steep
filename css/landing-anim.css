@@ -1,0 +1,10 @@
+.landing-cursor{position:fixed;z-index:20;width:4px;height:24px;border-radius:8px;background:#cd8b53;box-shadow:0 0 12px #cd8b5370;pointer-events:none;transition:left .22s ease,top .22s ease,opacity .25s ease}
+.landing-build .landing-word{visibility:hidden}
+.landing-build .landing-word.is-visible{visibility:visible}
+.landing-build .hero-actions a{opacity:0;transform:translateY(5px);transition:opacity .35s ease,transform .35s ease}
+.landing-build .hero-actions a.is-visible{opacity:1;transform:none}
+.landing-build .phone{opacity:0;transform:rotate(3deg) translateY(9px);transition:opacity .4s ease,transform .4s ease}
+.landing-build .phone.is-visible{opacity:1;transform:rotate(3deg)}
+.landing-build .bubble{opacity:0;transform:translateY(5px);transition:opacity .3s ease,transform .3s ease}
+.landing-build .bubble.is-visible{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.landing-cursor{display:none}}
