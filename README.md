@@ -5,8 +5,8 @@ Steep is an AI assistant for TikTok creators: a friendly place to talk niches, R
 ## File map
 
 - `index.html` — landing page structure.
-- `css/landing.css` — landing page styles and responsive layout.
-- `js/landing.js` — landing page reveal behavior.
+- `css/landing-core.css` — landing base, navigation and hero styles.
+- `css/landing-sections.css` — landing section, responsive and animation styles.
 - `app/index.html` — chat app structure.
 - `css/app.css` — chat layout and responsive styles.
 - `js/app.js` — chat interaction, requests and connection state.
