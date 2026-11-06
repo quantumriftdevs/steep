@@ -1,5 +1,5 @@
 import { loadChats, saveChats, newChat } from './store.js';
-import { bubble, animate } from './messages.js'; import { animateWelcome } from './anim.js'; import { checkConnection } from './status.js'; import { setupGreeting } from './greet.js';
+import { bubble, animate } from './messages.js'; import { checkConnection } from './status.js'; import { setupGreeting } from './greet.js';
 
 const $ = id => document.getElementById(id);
 const thread = $('thread'), messages = $('messages'), input = $('prompt');
@@ -43,7 +43,7 @@ function render(welcome = false) {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
     });
-    messages.append(empty); if (welcome) animateWelcome(empty, input);
+    messages.append(empty); 
   } else current.messages.forEach(m => bubble(messages, m.role, m.content));
   scrollDown();
 }
