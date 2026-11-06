@@ -8,3 +8,4 @@
 .bot-pupil{transition:transform .18s ease}
 @keyframes bot-blink{0%,98.4%,100%{transform:scaleY(1)}99.2%{transform:scaleY(.06)}}
 @media(prefers-reduced-motion:reduce){.bot-eye{animation:none}.bot-pupil{transition:none}}
+.brand .bot-word,.top-brand .bot-word{color:var(--ink)}
