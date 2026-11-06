@@ -1,5 +1,5 @@
 import { loadChats, saveChats, newChat } from './store.js';
-import { bubble, animate } from './messages.js';
+import { bubble, animate } from './messages.js'; import { animateWelcome } from './anim.js'; import { checkConnection } from './status.js';
 
 const $ = id => document.getElementById(id);
 const thread = $('thread'), messages = $('messages'), input = $('prompt');
@@ -34,7 +34,7 @@ function renderList() {
   });
   $('new-chat').disabled = busy;
 }
-function render() {
+function render(welcome = false) {
   renderList(); messages.replaceChildren();
   if (!current.messages.length) {
     const empty = document.createElement('section'); empty.className = 'empty';
@@ -43,14 +43,14 @@ function render() {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
     });
-    messages.append(empty);
+    messages.append(empty); if (welcome) animateWelcome(empty, input);
   } else current.messages.forEach(m => bubble(messages, m.role, m.content));
   scrollDown();
 }
 $('new-chat').onclick = () => {
   if (busy) return;
   if (current.messages.length) { current = newChat(); chats.unshift(current); save(); }
-  showError(''); menu(false); render(); input.focus();
+  showError(''); menu(false); render(true); input.focus();
 };
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; });
 input.addEventListener('keydown', e => {
@@ -82,7 +82,4 @@ $('composer').addEventListener('submit', async e => {
     busy = false; $('send').disabled = false; render();
   }
 });
-fetch('/api/status', { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => {
-  $('connection').innerHTML = data.connected ? '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg> Key configured' : '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg> Not connected';
-}).catch(() => { $('connection').innerHTML = '<svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg> Connection unknown'; });
-render();
+checkConnection(); render(true);
