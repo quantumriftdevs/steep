@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chat with Steep</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/app-anim.css">
-  <script type="module" src="/js/app.js"></script>
+  <link rel="stylesheet" href="/css/logo.css"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23d98642' d='M6 32C6 19 14 12 25 11c5-1 9-1 14 0 11 1 19 8 19 21S50 53 39 54c-5 1-9 1-14 0C14 53 6 45 6 32Z'/%3E%3Cellipse cx='24' cy='31' rx='4.5' ry='5.5' fill='%23fffefa'/%3E%3Cellipse cx='40' cy='31' rx='4.5' ry='5.5' fill='%23fffefa'/%3E%3C/svg%3E"><script type="module" src="/js/app.js"></script><script type="module" src="/js/logo.js"></script>
 </head>
 <body>
   <div class="shell">
     <button class="scrim" id="scrim" aria-label="Close conversation menu" hidden></button>
     <aside class="sidebar" id="sidebar" aria-label="Conversations">
-      <div class="side-top"><a class="brand" href="/">steep<span>.</span></a><button id="close-menu" class="icon mobile" aria-label="Close menu"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg></button></div>
+      <div class="side-top"><a class="brand" href="/"><svg class="bot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#d98642" d="M6 32C6 19 14 12 25 11c5-1 9-1 14 0 11 1 19 8 19 21S50 53 39 54c-5 1-9 1-14 0C14 53 6 45 6 32Z"/><ellipse cx="24" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><ellipse cx="40" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><circle cx="24" cy="31" r="2" fill="#4a2d21"/><circle cx="40" cy="31" r="2" fill="#4a2d21"/></svg><span class="bot-word">steep<span>.</span></span></a><button id="close-menu" class="icon mobile" aria-label="Close menu"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg></button></div>
       <button id="new-chat" class="new-chat"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> <span>New chat</span></button>
       <p class="side-label">YOUR CONVERSATIONS</p>
       <nav id="conversations" aria-label="Chat history"></nav>
       <p class="side-foot">A little clarity for the creator grind.</p>
     </aside>
     <main class="workspace">
-      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection" role="status">Checking connection…</span></header>
+      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="top-brand" href="/"><svg class="bot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#d98642" d="M6 32C6 19 14 12 25 11c5-1 9-1 14 0 11 1 19 8 19 21S50 53 39 54c-5 1-9 1-14 0C14 53 6 45 6 32Z"/><ellipse cx="24" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><ellipse cx="40" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><circle cx="24" cy="31" r="2" fill="#4a2d21"/><circle cx="40" cy="31" r="2" fill="#4a2d21"/></svg><span class="bot-word">steep<span>.</span></span></a><span id="connection" role="status">Checking connection…</span></header>
       <div id="thread" class="thread" aria-live="polite">
         <div class="thread-inner" id="messages"></div>
       </div>
@@ -29,5 +29,5 @@
       </div>
     </main>
   </div>
-<template id="empty-template"><section class="empty"><span class="empty-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 3h14l-1.5 15a4 4 0 0 1-4 3h-3a4 4 0 0 1-4-3L5 3Zm3 8 1 6a1 1 0 1 0 2 0 1 1 0 1 0-2 0Zm5 2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg></span><h1></h1><form class="name-form"><label for="visitor-name">What should Steep call you?</label><div><input id="visitor-name" maxlength="60" autocomplete="nickname" placeholder="Your name"><button type="submit">Save</button><button class="name-skip" type="button">Skip</button></div></form><div class="examples"></div></section></template></body>
+<template id="empty-template"><section class="empty"><span class="empty-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#d98642" d="M6 32C6 19 14 12 25 11c5-1 9-1 14 0 11 1 19 8 19 21S50 53 39 54c-5 1-9 1-14 0C14 53 6 45 6 32Z"/><g class="bot-eye"><ellipse cx="24" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><circle class="bot-pupil" cx="24" cy="31" r="2" fill="#4a2d21"/></g><g class="bot-eye"><ellipse cx="40" cy="31" rx="4.5" ry="5.5" fill="#fffefa"/><circle class="bot-pupil" cx="40" cy="31" r="2" fill="#4a2d21"/></g></svg></span><h1></h1><form class="name-form"><label for="visitor-name">What should Steep call you?</label><div><input id="visitor-name" maxlength="60" autocomplete="nickname" placeholder="Your name"><button type="submit">Save</button><button class="name-skip" type="button">Skip</button></div></form><div class="examples"></div></section></template></body>
 </html>
