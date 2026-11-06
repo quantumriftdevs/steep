@@ -12,9 +12,9 @@ export function bubble(messages, role, content) {
 
 export async function animate(body, reply, scrollDown) {
   const words = reply.match(/\S+\s*|\s+/g) || [reply];
-  let text = '';
+  let text = ''; body.classList.add('streaming');
   for (const word of words) {
     text += word; body.replaceChildren(renderMarkdown(text)); scrollDown();
     await new Promise(resolve => setTimeout(resolve, 24));
-  }
+  } body.classList.remove('streaming');
 }
