@@ -1,5 +1,5 @@
 import { loadChats, saveChats, newChat } from './store.js';
-import { bubble, animate } from './messages.js'; import { animateWelcome } from './anim.js'; import { checkConnection } from './status.js';
+import { bubble, animate } from './messages.js'; import { animateWelcome } from './anim.js'; import { checkConnection } from './status.js'; import { setupGreeting } from './greet.js';
 
 const $ = id => document.getElementById(id);
 const thread = $('thread'), messages = $('messages'), input = $('prompt');
@@ -37,8 +37,8 @@ function renderList() {
 function render(welcome = false) {
   renderList(); messages.replaceChildren();
   if (!current.messages.length) {
-    const empty = document.createElement('section'); empty.className = 'empty';
-    empty.innerHTML = '<span class="empty-mark">s</span><h1>Hey, creator.</h1><p>Got a TikTok question or a half-formed idea? Pull up a chair. We can figure it out together.</p><div class="examples"></div>';
+    const empty = $('empty-template').content.firstElementChild.cloneNode(true); setupGreeting(empty);
+
     ['Help me find my niche', 'Why is my RPM low?', 'Help me draft an appeal'].forEach(text => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
