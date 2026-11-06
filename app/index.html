@@ -11,20 +11,20 @@
   <div class="shell">
     <button class="scrim" id="scrim" aria-label="Close conversation menu" hidden></button>
     <aside class="sidebar" id="sidebar" aria-label="Conversations">
-      <div class="side-top"><a class="brand" href="/">steep<span>.</span></a><button id="close-menu" class="icon mobile" aria-label="Close menu">×</button></div>
-      <button id="new-chat" class="new-chat">＋ <span>New chat</span></button>
+      <div class="side-top"><a class="brand" href="/">steep<span>.</span></a><button id="close-menu" class="icon mobile" aria-label="Close menu"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg></button></div>
+      <button id="new-chat" class="new-chat"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> <span>New chat</span></button>
       <p class="side-label">YOUR CONVERSATIONS</p>
       <nav id="conversations" aria-label="Chat history"></nav>
       <p class="side-foot">A little clarity for the creator grind.</p>
     </aside>
     <main class="workspace">
-      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false">☰</button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection" role="status">Checking connection…</span></header>
+      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection" role="status">Checking connection…</span></header>
       <div id="thread" class="thread" aria-live="polite">
         <div class="thread-inner" id="messages"></div>
       </div>
       <div class="composer-wrap">
         <p id="error" class="error" role="alert" hidden></p>
-        <form id="composer" class="composer"><label class="sr-only" for="prompt">Message Steep</label><textarea id="prompt" rows="1" maxlength="12000" placeholder="Ask Steep anything…" required></textarea><button id="send" type="submit" aria-label="Send message">↑</button></form>
+        <form id="composer" class="composer"><label class="sr-only" for="prompt">Message Steep</label><textarea id="prompt" rows="1" maxlength="12000" placeholder="Ask Steep anything…" required></textarea><button id="send" type="submit" aria-label="Send message"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4M6 10l6-6 6 6"/></svg></button></form>
         <p class="disclaimer">Steep can make mistakes. Check current TikTok rules before acting.</p>
       </div>
     </main>
