@@ -1,23 +1,17 @@
 (() => {
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const buttons = [...document.querySelectorAll('.hero-actions > a')];
-  if (motion.matches || buttons.length !== 2 || !Element.prototype.animate) return;
+  if (motion.matches || !buttons.length || !Element.prototype.animate) return;
 
-  const agent = document.createElement('div');
-  agent.className = 'intro-agent';
-  agent.setAttribute('aria-hidden', 'true');
-  agent.innerHTML = '<svg width="18" height="22" viewBox="0 0 18 22"><path fill="#f33d32" stroke="#101010" d="M1 1v16l4-4 3.5 7 3-1.5-3.5-7H15z"/></svg><span>agent-01</span>';
-  document.body.append(agent);
   const animations = [];
+  const agents = [];
   let stopped = false;
-  buttons.forEach(button => { button.style.visibility = 'hidden'; });
-
   function finish() {
     if (stopped) return;
     stopped = true;
     animations.forEach(animation => animation.cancel());
     buttons.forEach(button => button.style.removeProperty('visibility'));
-    agent.remove();
+    agents.forEach(agent => agent.remove());
     window.removeEventListener('pointerdown', finish);
     window.removeEventListener('keydown', finish);
     window.removeEventListener('scroll', finish);
@@ -31,42 +25,35 @@
   window.addEventListener('resize', finish, { once: true });
   motion.addEventListener?.('change', onMotion);
 
-  async function run() {
-    try {
-      for (const [index, button] of buttons.entries()) {
-        if (stopped) return;
-        const box = button.getBoundingClientRect();
-        const distance = innerWidth - box.left + 25;
-        button.style.visibility = 'visible';
-        const timing = { duration: 850, easing: 'cubic-bezier(.2,.75,.25,1)' };
-        const carried = button.animate([
-          { transform: `translateX(${distance}px)` },
-          { transform: 'translateX(0)' }
-        ], timing);
-        const pointer = agent.animate([
-          { transform: `translate(${box.left + distance}px,${box.top - 14}px)` },
-          { transform: `translate(${box.left}px,${box.top - 14}px)` }
-        ], { ...timing, fill: 'forwards' });
-        animations.push(carried, pointer);
-        await Promise.all([carried.finished, pointer.finished]);
-        if (index === 0) {
-          const reset = agent.animate([
-            { transform: `translate(${box.left}px,${box.top - 14}px)` },
-            { transform: `translate(${innerWidth + 25}px,${box.top - 14}px)` }
-          ], { duration: 200, fill: 'forwards' });
-          animations.push(reset);
-          await reset.finished;
-        }
-      }
-      const last = buttons[1].getBoundingClientRect();
-      const exit = agent.animate([
-        { transform: `translate(${last.left}px,${last.top - 14}px)` },
-        { transform: `translate(${innerWidth + 25}px,${last.top - 60}px)` }
-      ], { duration: 250, fill: 'forwards' });
-      animations.push(exit);
-      await exit.finished;
-      finish();
-    } catch (_) { finish(); }
+  async function carry(button, index) {
+    const agent = document.createElement('div');
+    agent.className = `intro-agent agent-${index % 4 + 1}`;
+    agent.setAttribute('aria-hidden', 'true');
+    agent.innerHTML = `<svg width="18" height="22" viewBox="0 0 18 22"><path fill="currentColor" stroke="#101010" d="M1 1v16l4-4 3.5 7 3-1.5-3.5-7H15z"/></svg><span>agent ${index + 1}</span>`;
+    agents.push(agent);
+    document.body.append(agent);
+    const box = button.getBoundingClientRect();
+    const offset = index % 2 === 0 ? -box.right - 30 : innerWidth - box.left + 30;
+    const x = box.left;
+    const y = box.top - 14;
+    const timing = { duration: 1450, delay: index * 160, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' };
+    const carried = button.animate([
+      { transform: `translateX(${offset}px)` },
+      { transform: 'translateX(0)' }
+    ], timing);
+    const pointer = agent.animate([
+      { transform: `translate(${x + offset}px,${y}px)` },
+      { transform: `translate(${x}px,${y}px)` }
+    ], timing);
+    animations.push(carried, pointer);
+    await Promise.all([carried.finished, pointer.finished]);
+    if (stopped) return;
+    const exit = agent.animate([
+      { transform: `translate(${x}px,${y}px)`, opacity: 1 },
+      { transform: `translate(${x + (index % 2 ? 90 : -90)}px,${y - 70}px)`, opacity: 0 }
+    ], { duration: 450, easing: 'ease-in', fill: 'forwards' });
+    animations.push(exit);
+    await exit.finished;
   }
-  run();
+  Promise.all(buttons.map(carry)).then(finish).catch(finish);
 })();
