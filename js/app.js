@@ -1,5 +1,5 @@
 import { loadChats, saveChats, newChat } from './store.js';
-import { renderMarkdown } from './markdown.js';
+import { bubble, animate } from './messages.js';
 
 const $ = id => document.getElementById(id);
 const thread = $('thread'), messages = $('messages'), input = $('prompt');
@@ -34,15 +34,6 @@ function renderList() {
   });
   $('new-chat').disabled = busy;
 }
-function bubble(role, content) {
-  const row = document.createElement('div'); row.className = `message ${role}`;
-  if (role === 'assistant') {
-    const avatar = document.createElement('span'); avatar.className = 'avatar'; avatar.textContent = 's'; row.append(avatar);
-  }
-  const body = document.createElement('div'); body.className = 'bubble';
-  if (role === 'assistant') body.append(renderMarkdown(content)); else body.textContent = content;
-  row.append(body); messages.append(row); return body;
-}
 function render() {
   renderList(); messages.replaceChildren();
   if (!current.messages.length) {
@@ -53,7 +44,7 @@ function render() {
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
     });
     messages.append(empty);
-  } else current.messages.forEach(m => bubble(m.role, m.content));
+  } else current.messages.forEach(m => bubble(messages, m.role, m.content));
   scrollDown();
 }
 $('new-chat').onclick = () => {
@@ -66,14 +57,6 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
 });
 
-async function animate(body, reply) {
-  const words = reply.match(/\S+\s*|\s+/g) || [reply];
-  let text = '';
-  for (const word of words) {
-    text += word; body.replaceChildren(renderMarkdown(text)); scrollDown();
-    await new Promise(resolve => setTimeout(resolve, 24));
-  }
-}
 $('composer').addEventListener('submit', async e => {
   e.preventDefault();
   const text = input.value.trim();
@@ -82,15 +65,15 @@ $('composer').addEventListener('submit', async e => {
   const first = !current.messages.length;
   current.messages.push({ role: 'user', content: text });
   if (first) current.title = text.slice(0, 42);
-  input.value = ''; input.style.height = 'auto'; save(); render();
-  const typing = bubble('assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
+  input.value = ''; input.style.height = 'auto'; render();
+  const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: current.messages.slice(-99) }) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
     typing.classList.remove('typing');
-    await animate(typing, data.reply);
+    await animate(typing, data.reply, scrollDown);
     current.messages.push({ role: 'assistant', content: data.reply }); save();
   } catch (err) {
     current.messages.pop(); if (first) current.title = 'New chat';
