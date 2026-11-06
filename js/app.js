@@ -14,7 +14,7 @@ function menu(open) {
   $('open-menu').setAttribute('aria-expanded', String(open));
 }
 $('open-menu').onclick = () => menu(true);
-$('close-menu').onclick = () => menu(false);
+
 scrim.onclick = () => menu(false);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') menu(false); });
 
