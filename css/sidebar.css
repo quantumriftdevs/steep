@@ -7,3 +7,6 @@
 .workspace{position:relative;z-index:1;background:var(--cream);border-radius:24px 0 0 24px;box-shadow:-8px 0 24px #4a2d2112;overflow:hidden}
 @media(max-width:700px){.sidebar{position:fixed;z-index:1;inset:0 auto 0 0;width:min(290px,85vw);transform:none;visibility:hidden;transition:visibility 0s .25s}.sidebar.open{visibility:visible;transition:visibility 0s}.workspace{z-index:2;border-radius:0;transition:transform .25s ease,border-radius .25s ease}.sidebar.open~.workspace{transform:translateX(calc(min(290px,85vw) - 34px));border-radius:26px 0 0 26px;box-shadow:-8px 0 28px #4a2d2126}.scrim{position:fixed;z-index:3;top:0;bottom:0;left:calc(min(290px,85vw) - 34px);right:0;width:auto;height:auto;background:#20150d33}.side-top{padding-bottom:28px}}
 @media(prefers-reduced-motion:reduce){.workspace,.sidebar{transition:none}}
+#conversations button{display:flex;align-items:center;gap:12px}
+#conversations button .app-icon{width:20px;height:20px;flex:none;color:var(--muted)}
+#conversations button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
