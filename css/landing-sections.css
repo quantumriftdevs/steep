@@ -1,0 +1,26 @@
+.strip{border-block:1px solid var(--line);padding:18px 0}
+.strip-inner{display:flex;justify-content:center;gap:60px;color:#9a7f6b;font-size:12px;font-weight:750;letter-spacing:.02em}
+.section{padding:100px 0}
+.center{text-align:center}
+.center .eyebrow{justify-content:center}
+.section h2{font-size:clamp(32px,4vw,48px);line-height:1.13;letter-spacing:-.045em;margin:15px 0}
+.section-intro{color:var(--muted);max-width:550px;margin:auto}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:46px}
+.card{background:var(--paper);border:1px solid #eee4d9;border-radius:22px;padding:27px;box-shadow:0 10px 30px #6f4a2e08}
+.icon{width:46px;height:46px;background:#f8eadb;color:#a65f32;border-radius:15px;display:grid;place-items:center;margin-bottom:21px}
+.icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font-size:17px;letter-spacing:-.02em;margin-bottom:8px}
+.card p{font-size:14px;color:var(--muted);line-height:1.7}
+.how{background:#f4eadc}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:50px}
+.step{text-align:center;padding:0 20px}
+.step-num{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#fffaf2;color:#b96c39;font-weight:800;margin:0 auto 18px;box-shadow:0 6px 18px #63452d0d}
+.step h3{font-size:18px;margin-bottom:8px}
+.step p{color:var(--muted);font-size:14px}
+.quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:45px}
+.quote{background:#fffdfa;border:1px solid var(--line);border-radius:22px;padding:28px;display:flex;flex-direction:column;gap:20px}
+.stars{color:#c77d41;letter-spacing:3px;font-size:14px}
+.quote blockquote{margin:0;font-size:16px;line-height:1.65;font-weight:600;flex:1}
+.quote small{color:#9b8576}
+.fiction{text-align:center;color:#9b8576;font-size:12px;margin-top:18px}
+.pricing{padding-top:0}.pricebox{border-radius:30px;padding:50px;background:#f1dfc8;display:flex;align-items:center;justify-content:space-between;gap:30px}.pricebox h2{margin:10px 0}.pricebox p{color:#7c6454}.price{font-size:60px;letter-spacing:-.06em;line-height:1;font-weight:800}.price small{font-size:14px;letter-spacing:0;color:#8d705d;font-weight:600}.badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.badge{background:#fff9f1;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;color:#7a5741}.faq{padding-top:30px}.faq-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:70px}.faq-intro{color:var(--muted)}details{border-bottom:1px solid var(--line);padding:19px 0}details:first-child{border-top:1px solid var(--line)}summary{cursor:pointer;list-style:none;font-weight:750;display:flex;justify-content:space-between;gap:20px}summary::-webkit-details-marker{display:none}summary:after{content:'+';font-size:22px;line-height:1;color:#b47a4d}details[open] summary:after{content:'−'}details p{font-size:14px;color:var(--muted);padding:12px 25px 2px 0}.final{background:var(--dark);color:#fff9f0;text-align:center;border-radius:32px;padding:64px 24px}.final h2{margin:12px 0 14px;font-size:clamp(32px,4vw,48px);line-height:1.13;letter-spacing:-.045em}.final p{color:#e6cdb9;margin:0 auto 25px;max-width:500px}.final .eyebrow{color:#dfaa7f;justify-content:center}.footer{padding:55px 0 28px}.footrow{display:flex;justify-content:space-between;align-items:center;gap:20px}.footnote{color:#9b887b;font-size:12px;margin-top:18px}.footlinks{display:flex;gap:24px;font-size:13px;color:#8c7566}.reveal{animation:rise .7s ease both}@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@supports (animation-timeline:view()){.card,.step,.quote,.pricebox,.faq-grid,.final{animation:rise linear both;animation-timeline:view();animation-range:entry 0% entry 25%}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal,.card,.step,.quote,.pricebox,.faq-grid,.final{animation:none}.pill{transition:none}}@media(max-width:760px){.wrap{width:min(100% - 36px,560px)}.nav{height:72px}.navlinks a:not(.pill){display:none}.hero{grid-template-columns:1fr;gap:38px;padding:45px 0 65px}.visual{min-height:420px}.float.one{left:2px}.float.two{right:0}.strip-inner{gap:14px;justify-content:space-between;font-size:10px}.section{padding:70px 0}.cards{grid-template-columns:1fr;gap:12px}.steps,.quotes{grid-template-columns:1fr;gap:18px}.step{padding:8px 18px}.pricing{padding-top:0}.pricebox{padding:32px;display:block}.price{margin-top:26px}.faq{padding-top:10px}.faq-grid{grid-template-columns:1fr;gap:30px}.final{padding:50px 22px}.footrow{align-items:flex-start;flex-direction:column}.footlinks{flex-wrap:wrap}.hero-actions{gap:16px}}@media print{.reveal,.card,.step,.quote,.pricebox,.faq-grid,.final{animation:none}.section{padding:40px 0}.hero{padding:30px 0}.card,.quote,.pricebox,details,.phone,.final{break-inside:avoid}}body{font-family:'Hanken Grotesk',sans-serif}h1,h2,h3{font-family:'Bricolage Grotesque',sans-serif}
