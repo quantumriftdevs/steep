@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
   const messages = req.body && req.body.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 100 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) ||
-        typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000)) {
+        typeof m.content !== 'string' || !m.content.trim() || m.content.length > 40000)) {
     return res.status(400).json({ error: 'Please send a valid conversation.' });
   }
   if (groqKey) {
