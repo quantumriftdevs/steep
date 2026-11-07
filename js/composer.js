@@ -1,17 +1,9 @@
 import { createVoice } from './voice.js';
 
-// Decorative plus/mic; text submits still use the original app handler.
+// The circular send button remains the only voice control.
 const form = document.getElementById('composer');
 const input = document.getElementById('prompt');
 const send = document.getElementById('send');
-function decoration(path) {
-  const icon = document.createElement('span'); icon.className = 'composer-decoration';
-  icon.setAttribute('aria-hidden', 'true');
-  icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
-  return icon;
-}
-form.insertBefore(decoration('<path d="M12 5v14M5 12h14"/>'), input);
-form.insertBefore(decoration('<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M9 21h6"/>'), send);
 send.innerHTML = '<svg class="send-wave" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg><svg class="send-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4M6 10l6-6 6 6"/></svg><svg class="send-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 const status = document.createElement('span'); status.className = 'voice-status'; status.hidden = true;
 status.setAttribute('role', 'status');
@@ -26,8 +18,9 @@ const label = status.querySelector('.voice-label'), timer = status.querySelector
 const notice = document.createElement('p'); notice.className = 'voice-error'; notice.hidden = true;
 notice.setAttribute('role', 'alert'); form.before(notice);
 let voiceState = 'idle';
+function ready() { return input.value.length > 0 || form.dataset.attachment === 'true'; }
 function syncIcon() {
-  const active = voiceState !== 'idle', hasText = input.value.length > 0;
+  const active = voiceState !== 'idle', hasText = ready();
   send.classList.toggle('has-text', hasText);
   send.type = active || !hasText ? 'button' : 'submit';
   send.setAttribute('aria-label', voiceState === 'recording' ? 'Stop recording' : active ? 'Transcribing voice note' : hasText ? 'Send message' : 'Record voice note');
@@ -51,7 +44,7 @@ const voice = createVoice({
   onError(text) { notice.textContent = text; notice.hidden = false; input.focus(); }
 });
 send.addEventListener('click', event => {
-  if (voiceState === 'idle' && input.value.length) return;
+  if (voiceState === 'idle' && ready()) return;
   event.preventDefault();
   if (voiceState === 'recording') voice.stop();
   else if (voiceState === 'idle' && !send.disabled) { notice.hidden = true; voice.start(); }
