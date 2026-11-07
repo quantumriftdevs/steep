@@ -1,0 +1,10 @@
+.settings-page{width:min(640px,100%);margin:0 auto;padding:28px 24px max(28px,env(safe-area-inset-bottom));}
+.back-link{display:inline-flex;align-items:center;gap:8px;color:var(--muted);padding:8px 0;font-size:15px;}
+.back-link:focus-visible{outline:2px solid var(--amber);outline-offset:4px;border-radius:4px;}
+.settings-page h1{font:800 32px 'Bricolage Grotesque',sans-serif;letter-spacing:-1px;margin:28px 0 24px;}
+.settings-section{border-top:1px solid var(--line);padding-top:20px;}
+.settings-section h2{font-size:17px;margin:0 0 12px;}
+.settings-section #connection{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--ink);margin:0;}
+.settings-section #connection .app-icon{width:15px;height:15px;flex:none;}
+.settings-note{font-size:13px;color:var(--muted);margin-top:10px;}
+@media(max-width:700px){.settings-page{padding:20px 20px max(24px,env(safe-area-inset-bottom));}}
