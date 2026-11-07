@@ -1,0 +1,21 @@
+/* Voice states are confined to the chat input pill. */
+.voice-status{display:flex;align-items:center;gap:9px;flex:1;min-width:0;color:#aa6827;font-size:14px;white-space:nowrap;}
+.voice-status[hidden],.voice-error[hidden]{display:none;}
+.voice-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#c58539;}
+.voice-bars{display:flex;align-items:center;justify-content:center;gap:3px;flex:1;height:26px;overflow:hidden;}
+.voice-bars i{display:block;width:2px;flex:none;height:var(--height);border-radius:2px;background:#c58539;transform-origin:center;}
+.composer.voice-recording .voice-dot{animation:voice-pulse 1.3s ease-in-out infinite;}
+.composer.voice-recording .voice-bars i{animation:voice-wave .8s ease-in-out infinite alternate;animation-delay:var(--delay);}
+.composer.voice-active textarea,.composer.voice-active .composer-decoration{display:none;}
+.composer #send .send-stop{opacity:0;scale:.75;}
+.composer.voice-active #send .send-wave,.composer.voice-active #send .send-arrow{opacity:0;scale:.75;}
+.composer.voice-recording #send{background:#f3e2c9;color:#ae702b;}
+.composer.voice-recording #send .send-stop{opacity:1;scale:1;fill:currentColor;stroke:none;}
+.composer.voice-active:not(.voice-recording) .voice-dot,.composer.voice-active:not(.voice-recording) .voice-bars{display:none;}
+.voice-error{width:100%;max-width:448px;margin:0 auto 8px;color:#9e5934;font-size:13px;line-height:1.4;}
+@keyframes voice-pulse{50%{opacity:.45;}}
+@keyframes voice-wave{from{transform:scaleY(.45);}to{transform:scaleY(1);}}
+@media(prefers-reduced-motion:reduce){
+  .composer.voice-recording .voice-dot,.composer.voice-recording .voice-bars i{animation:none;}
+  .composer .voice-bars{display:none;}
+}
