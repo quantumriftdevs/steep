@@ -1,3 +1,5 @@
+import { authHeaders } from './auth.js';
+
 // Stateless voice capture. UI stays in composer.js; no chat or storage access.
 export function createVoice({ onState, onTime, onText, onError }) {
   let state = 'idle', recorder, stream, interval, cap, request, generation = 0;
@@ -47,7 +49,7 @@ export function createVoice({ onState, onTime, onText, onError }) {
           if (!blob.size) throw new Error('empty');
           if (blob.size > 4 * 1024 * 1024) throw new Error('large');
           const response = await fetch('/api/transcribe', {
-            method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'x-audio-format': blob.type || 'audio/webm' },
+            method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'x-audio-format': blob.type || 'audio/webm', ...await authHeaders() },
             body: blob, signal: controller.signal
           });
           if (!response.ok) throw new Error(response.status === 413 ? 'large' : 'transcribe');
