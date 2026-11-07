@@ -2,7 +2,7 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const key = (process.env.GEMINI_API_KEY || '').trim();
   if (!key) return res.status(200).json({ connected: false, reason: 'No key configured' });
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+  const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) return res.status(200).json({ connected: false, reason: 'Invalid model configuration.' });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
