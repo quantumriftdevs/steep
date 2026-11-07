@@ -9,3 +9,9 @@
 .composer #send svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;}
 .composer #send:focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
 @media(max-width:380px){.composer{gap:9px;padding-left:16px;}.composer-decoration{width:18px;}}
+/* Icon-only crossfade: both drawings occupy the same grid cell. */
+.composer #send svg{grid-area:1/1;transition:opacity .16s ease,scale .2s cubic-bezier(.34,1.56,.64,1);}
+.composer #send .send-arrow{opacity:0;scale:.75;}
+.composer #send.has-text .send-wave{opacity:0;scale:.75;}
+.composer #send.has-text .send-arrow{opacity:1;scale:1;}
+@media(prefers-reduced-motion:reduce){.composer #send svg{transition:none;}}
