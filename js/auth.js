@@ -38,7 +38,7 @@ async function request(path, body) {
 }
 export async function sendCode(email) {
   const { response } = await request('otp', { email, create_user: true });
-  if (!response.ok) throw new Error(response.status === 429 ? 'Too many code requests just now. Please wait a little and try again.' : 'We could not send your code. Please check your email and try again.');
+  if (!response.ok) throw new Error(response.status === 429 ? 'Email codes are being requested a bit too fast. Please wait a little and try again.' : 'We could not send your code. Please check your email and try again.');
 }
 export async function verifyCode(email, token) {
   const version = generation;
