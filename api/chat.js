@@ -3,6 +3,19 @@ const { prompt } = require('./personality');
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
+  const authUrl = (process.env.SUPABASE_URL || '').trim();
+  if (authUrl) {
+    const authorization = req.headers.authorization || '';
+    const unauthorized = () => res.status(401).json({ error: 'Please sign in to keep using Steep.' });
+    if (!/^Bearer\s+\S+$/i.test(authorization)) return unauthorized();
+    try {
+      const user = await fetch(authUrl + '/auth/v1/user', {
+        headers: { apikey: process.env.SUPABASE_ANON_KEY || '', Authorization: authorization },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!user.ok || !(await user.json()).id) return unauthorized();
+    } catch (_) { return unauthorized(); }
+  }
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
   const key = (process.env.GEMINI_API_KEY || '').trim();
   if (!groqKey && !key) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add the API key in Vercel" });
