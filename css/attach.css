@@ -3,12 +3,8 @@
 .composer:focus-within{border-color:#ece8e1;}
 .composer .attach-plus{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:10px;border:0;background:none;color:#736e68;cursor:pointer;}
 .composer.voice-active .attach-entry,.composer.voice-active .attach-plus{display:none;}
-.attach-plus svg,.attach-menu svg,.attach-file svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
-.attach-menu{position:absolute;bottom:calc(100% + 10px);left:8px;z-index:20;width:216px;padding:6px;border-radius:18px;border:1px solid rgba(255,255,255,.8);background:rgba(255,250,242,.7);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 10px 32px #38251d20,inset 0 1px 0 #ffffffb3;transform-origin:20px bottom;animation:attach-in .16s ease-out;}
-.attach-menu[hidden],.attach-chip[hidden]{display:none;}
-.attach-menu button{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:5px 8px;border:0;border-radius:12px;background:none;color:var(--ink);font:inherit;font-size:14px;text-align:left;cursor:pointer;}
-.attach-menu button:hover{background:#ffffff70;}
-.attach-tile{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;color:#b7753d;background:#d986421c;}
+.attach-plus svg,.attach-file svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.attach-chip[hidden]{display:none;}
 .attach-entry{flex:1;min-width:0;}
 .composer .attach-entry textarea{width:100%;display:block;outline:none;box-shadow:none;}
 .attach-chip{display:flex;align-items:center;gap:6px;max-width:100%;padding:4px 6px;margin:3px 0 0;border:1px solid #e4dcd0;border-radius:12px;background:var(--paper);color:var(--ink);font-size:12px;}
@@ -18,5 +14,3 @@
 .attach-file{display:flex;align-items:center;gap:6px;overflow-wrap:anywhere;}
 .attach-preview{display:block;max-width:100%;width:180px;max-height:200px;object-fit:cover;border-radius:14px;margin:0 0 8px;}
 .bubble>.attach-file{font-size:13px;margin-bottom:6px;}
-@keyframes attach-in{from{opacity:0;transform:scale(.94) translateY(4px);}to{opacity:1;transform:none;}}
-@media(prefers-reduced-motion:reduce){.attach-menu{animation:none;}}
