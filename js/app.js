@@ -1,5 +1,6 @@
 import { setupProfile, recentLabel } from './sidebar.js';
 import { loadChats, saveChats, newChat } from './store.js';
+import { setupChatActions } from './chat-actions.js';
 import { bubble, animate } from './messages.js'; import { temporaryChat, ghostEmpty, setupGhost, updateGhost } from './ghost.js'; import { setupGreeting } from './greet.js';
 
 const $ = id => document.getElementById(id);
@@ -8,17 +9,30 @@ const sidebar = $('sidebar'), scrim = $('scrim'), error = $('error');
 let chats = loadChats(), current = chats[0] || newChat(), busy = false;
 if (!chats.length) chats = [current];
 const ghost = setupGhost();
+const ghostTitle = document.createElement('span'); ghostTitle.className = 'ghost-title';
+ghostTitle.textContent = 'Ghost mode'; ghostTitle.hidden = true;
+document.querySelector('.topbar').append(ghostTitle);
+const actions = setupChatActions(ghost, {
+  current: () => current, newChat: () => $('new-chat').click(), notice: showError,
+  change: () => { save(); renderList(); },
+  remove: () => {
+    const id = current.id; discardTemporary(); chats = chats.filter(c => c.id !== id);
+    current = newChat(); chats.unshift(current); input.value = ''; showError('');
+    save(); render(); input.focus();
+  }
+});
 function discardTemporary() {
   if (current.temporary) { current.messages.length = 0; input.value = ''; }
 }
 ghost.onclick = () => {
-  if (busy) return;
+  if (busy && !current.temporary) return;
   const closing = current.temporary; discardTemporary();
-  current = closing ? chats[0] : temporaryChat();
+  current = closing ? newChat() : temporaryChat();
+  if (closing) chats.unshift(current);
   input.value = ''; showError(''); menu(false); render(); input.focus();
 };
 window.addEventListener('pagehide', () => {
-  if (current.temporary) { discardTemporary(); current = chats[0]; showError(''); render(); }
+  if (current.temporary) { discardTemporary(); current = newChat(); chats.unshift(current); showError(''); render(); }
 });
 
 function menu(open) {
@@ -39,15 +53,19 @@ function showError(text) { error.textContent = text; error.hidden = !text; }
 function scrollDown() { thread.scrollTop = thread.scrollHeight; }
 function renderList() {
   const list = $('conversations'); list.replaceChildren();
-  chats.filter(chat => chat.messages.length > 0).forEach(chat => {
+  chats.filter(chat => chat.messages.length > 0).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)).forEach(chat => {
     const button = document.createElement('button');
-    button.type = 'button';     const firstUser = chat.messages.find(m => m.role === 'user' && typeof m.content === 'string');     const title = (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';     recentLabel(button, title.length > 42 ? title.slice(0, 42) + '…' : title);
+    button.type = 'button';     const firstUser = chat.messages.find(m => m.role === 'user' && typeof m.content === 'string');     const title = chat.customTitle || (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';     recentLabel(button, title.length > 42 ? title.slice(0, 42) + '…' : title);
     button.className = chat.id === current.id ? 'active' : '';
     button.disabled = busy;
     button.onclick = () => { discardTemporary(); current = chat; showError(''); menu(false); render(); };
     list.append(button);
   });
-  $('new-chat').disabled = busy; updateGhost(ghost, current, busy);
+  $('new-chat').disabled = busy && !current.temporary; updateGhost(ghost, current, busy);
+  ghost.disabled = busy && !current.temporary;
+  const temporary = !!current.temporary;
+  document.querySelector('.topbar').classList.toggle('ghost-mode', temporary); ghostTitle.hidden = !temporary;
+  actions.update(temporary ? { ...current, messages: [] } : current, busy);
 }
 function render(welcome = false) {
   renderList(); messages.replaceChildren();
@@ -65,7 +83,7 @@ function render(welcome = false) {
   messages.append(error); scrollDown();
 }
 $('new-chat').onclick = () => {
-  if (busy) return;
+  if (busy && !current.temporary) return;
   if (current.temporary || current.messages.length) { discardTemporary(); current = newChat(); chats.unshift(current); save(); }
   showError(''); menu(false); render(true); input.focus();
 };
