@@ -1,12 +1,25 @@
 import { setupProfile, recentLabel } from './sidebar.js';
 import { loadChats, saveChats, newChat } from './store.js';
-import { bubble, animate } from './messages.js'; import { checkConnection } from './status.js'; import { setupGreeting } from './greet.js';
+import { bubble, animate } from './messages.js'; import { temporaryChat, ghostEmpty, setupGhost, updateGhost } from './ghost.js'; import { setupGreeting } from './greet.js';
 
 const $ = id => document.getElementById(id);
 const thread = $('thread'), messages = $('messages'), input = $('prompt');
 const sidebar = $('sidebar'), scrim = $('scrim'), error = $('error');
 let chats = loadChats(), current = chats[0] || newChat(), busy = false;
 if (!chats.length) chats = [current];
+const ghost = setupGhost();
+function discardTemporary() {
+  if (current.temporary) { current.messages.length = 0; input.value = ''; }
+}
+ghost.onclick = () => {
+  if (busy) return;
+  const closing = current.temporary; discardTemporary();
+  current = closing ? chats[0] : temporaryChat();
+  input.value = ''; showError(''); menu(false); render(); input.focus();
+};
+window.addEventListener('pagehide', () => {
+  if (current.temporary) { discardTemporary(); current = chats[0]; showError(''); render(); }
+});
 
 function menu(open) {
   sidebar.classList.toggle('open', open);
@@ -19,6 +32,7 @@ scrim.onclick = () => menu(false);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') menu(false); });
 
 function save() {
+  if (current.temporary) return;
   if (!saveChats(chats)) showError('This browser could not save your chats. They may disappear when you leave.');
 }
 function showError(text) { error.textContent = text; error.hidden = !text; }
@@ -30,27 +44,29 @@ function renderList() {
     button.type = 'button';     const firstUser = chat.messages.find(m => m.role === 'user' && typeof m.content === 'string');     const title = (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';     recentLabel(button, title.length > 42 ? title.slice(0, 42) + '…' : title);
     button.className = chat.id === current.id ? 'active' : '';
     button.disabled = busy;
-    button.onclick = () => { current = chat; showError(''); menu(false); render(); };
+    button.onclick = () => { discardTemporary(); current = chat; showError(''); menu(false); render(); };
     list.append(button);
   });
-  $('new-chat').disabled = busy;
+  $('new-chat').disabled = busy; updateGhost(ghost, current, busy);
 }
 function render(welcome = false) {
   renderList(); messages.replaceChildren();
-  if (!current.messages.length) {
+  if (current.temporary && !current.messages.length) {
+    messages.append(ghostEmpty());
+  } else if (!current.messages.length) {
     const empty = $('empty-template').content.firstElementChild.cloneNode(true); setupGreeting(empty);
 
     ['Help me find my niche', 'Why is my RPM low?', 'Help me draft an appeal'].forEach(text => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
     });
-    messages.append(empty); 
+    messages.append(empty);
   } else current.messages.forEach(m => bubble(messages, m.role, m.content));
-  scrollDown();
+  messages.append(error); scrollDown();
 }
 $('new-chat').onclick = () => {
   if (busy) return;
-  if (current.messages.length) { current = newChat(); chats.unshift(current); save(); }
+  if (current.temporary || current.messages.length) { discardTemporary(); current = newChat(); chats.unshift(current); save(); }
   showError(''); menu(false); render(true); input.focus();
 };
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; });
@@ -62,6 +78,7 @@ $('composer').addEventListener('submit', async e => {
   e.preventDefault();
   const text = input.value.trim();
   if (!text || busy) return;
+  const active = current;
   busy = true; $('send').disabled = true; showError('');
   const first = !current.messages.length;
   current.messages.push({ role: 'user', content: text });
@@ -71,16 +88,19 @@ $('composer').addEventListener('submit', async e => {
   try {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: current.messages.slice(-99) }) });
     const data = await response.json();
+    if (current !== active) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
     typing.classList.remove('typing');
     await animate(typing, data.reply, scrollDown);
+    if (current !== active) return;
     current.messages.push({ role: 'assistant', content: data.reply }); save();
   } catch (err) {
+    if (current !== active) return;
     current.messages.pop(); if (first) current.title = 'New chat';
     input.value = text; showError(err.message || 'Could not connect. Try again.'); save();
   } finally {
     busy = false; $('send').disabled = false; render();
   }
 });
-setupProfile(); checkConnection(); render(true);
+setupProfile(); render(true);
