@@ -4,6 +4,19 @@ const formats = { 'audio/webm': 'webm', 'audio/mp4': 'mp4', 'audio/m4a': 'm4a', 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
+  const authUrl = (process.env.SUPABASE_URL || '').trim();
+  if (authUrl) {
+    const authorization = req.headers.authorization || '';
+    const unauthorized = () => res.status(401).json({ error: 'Please sign in to keep using Steep.' });
+    if (!/^Bearer\s+\S+$/i.test(authorization)) return unauthorized();
+    try {
+      const user = await fetch(authUrl + '/auth/v1/user', {
+        headers: { apikey: process.env.SUPABASE_ANON_KEY || '', Authorization: authorization },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!user.ok || !(await user.json()).id) return unauthorized();
+    } catch (_) { return unauthorized(); }
+  }
   const key = (process.env.GROQ_API_KEY || '').trim();
   if (!key) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add the API key in Vercel" });
   const tooLarge = () => res.status(413).json({ error: 'Audio request exceeds the 4 MiB limit.' });
