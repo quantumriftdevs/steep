@@ -1,9 +1,15 @@
 import './press.js';
 import { checkConnection } from './status.js';
 import { setupProfile } from './sidebar.js';
+import { onAuthChange, logout, maskEmail } from './auth.js';
 
 const $ = id => document.getElementById(id);
 const feedback = text => { $('settings-feedback').textContent = text; };
+onAuthChange(session => {
+  if (!session) { location.replace('/app/'); return; }
+  $('account-email').textContent = maskEmail(session.user.email);
+});
+$('auth-logout').addEventListener('click', logout);
 function readName() {
   try { return localStorage.getItem('steep-name') || ''; } catch { return ''; }
 }
