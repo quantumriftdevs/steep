@@ -1,3 +1,4 @@
+import './press.js';
 import { checkConnection } from './status.js';
 import { setupProfile } from './sidebar.js';
 
