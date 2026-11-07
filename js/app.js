@@ -1,3 +1,4 @@
+import { authHeaders, getSession, logout } from './auth.js';
 import { setupProfile, recentLabel } from './sidebar.js';
 import { loadChats, saveChats, newChat } from './store.js';
 import { setupChatActions } from './chat-actions.js';
@@ -99,7 +100,7 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
 });
 $('composer').addEventListener('submit', async e => {
-  e.preventDefault(); const text = input.value.trim(); if (!text || busy) return;
+  e.preventDefault(); const text = input.value.trim(); if (!text || busy || !getSession()) return;
   const active = current; busy = true; $('send').disabled = true; showError('');
   const first = !current.messages.length;
   current.messages.push({ role: 'user', content: text });
@@ -108,7 +109,8 @@ $('composer').addEventListener('submit', async e => {
   const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
     const history = current.messages.slice(-99).map(({ role, content }) => ({ role, content }));
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) });
+    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...await authHeaders() }, body: JSON.stringify({ messages: history }) });
+    if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (current !== active) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
