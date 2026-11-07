@@ -1,0 +1,22 @@
+/* Header actions only; drawer and conversation styling stay untouched. */
+.topbar{position:relative;}
+.topbar .chat-actions{position:relative;margin-left:auto;flex:none;width:42px;height:42px;border-radius:24px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.8);box-shadow:0 5px 20px rgba(56,37,29,.07),inset 0 1px 0 rgba(255,255,255,.6);-webkit-backdrop-filter:blur(16px) saturate(1.15);backdrop-filter:blur(16px) saturate(1.15);transition:width .28s ease,background .28s ease;z-index:5;}
+.topbar .chat-actions.has-messages{width:88px;}
+.topbar .chat-actions #ghost-chat{position:absolute;right:-1px;top:-1px;margin:0;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;transition:opacity .2s ease,transform .28s ease;}
+.chat-pill{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transform:translateX(8px);transition:opacity .22s ease,transform .28s ease,visibility .22s;}
+.chat-pill button{display:grid;place-items:center;width:42px;height:40px;border:0;background:transparent;color:var(--ink);padding:10px;border-radius:50%;}
+.chat-actions svg{width:22px;height:22px;}
+.chat-pill svg,.chat-options svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+.has-messages #ghost-chat{opacity:0;visibility:hidden;transform:translateX(-16px);}
+.has-messages .chat-pill{opacity:1;visibility:visible;transform:none;}
+.chat-options{position:absolute;right:0;top:52px;width:min(250px,calc(100vw - 36px));padding:8px;border:1px solid rgba(255,255,255,.8);border-radius:24px;background:rgba(250,247,240,.96);box-shadow:0 12px 40px rgba(56,37,29,.16);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);}
+.chat-options>button{width:100%;display:flex;align-items:center;gap:14px;padding:13px 14px;border:0;border-radius:16px;background:transparent;color:var(--ink);font:16px 'Hanken Grotesk',sans-serif;text-align:left;}
+.chat-options>button:hover{background:rgba(56,37,29,.05);}.chat-options>button[hidden],.chat-rename[hidden]{display:none;}
+.chat-options .delete-chat{color:#b5473b;}.chat-options hr{border:0;border-top:1px solid var(--line);margin:5px 10px;}
+.chat-rename{padding:8px;}.chat-rename input{width:100%;min-width:0;font:16px 'Hanken Grotesk',sans-serif;padding:9px;border:1px solid var(--line);border-radius:10px;background:var(--cream);color:var(--ink);}
+.chat-rename button{margin-top:8px;border:0;border-radius:12px;background:var(--ink);color:var(--cream);padding:9px 12px;}
+.chat-actions button:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}.chat-actions button:disabled{opacity:.5;}
+.ghost-title{position:absolute;left:50%;transform:translateX(-50%);font:800 23px 'Bricolage Grotesque',sans-serif;letter-spacing:-.5px;color:var(--ink);white-space:nowrap;}
+.ghost-mode .top-brand{visibility:hidden;}.topbar.ghost-mode .chat-actions{background:var(--ink);border-color:var(--ink);}
+.topbar.ghost-mode #ghost-chat{color:var(--cream);}
+@media(prefers-reduced-motion:reduce){.topbar .chat-actions,.chat-pill,.topbar .chat-actions #ghost-chat{transition:none;}}
