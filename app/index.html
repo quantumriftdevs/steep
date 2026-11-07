@@ -7,12 +7,40 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/app-anim.css"><link rel="stylesheet" href="/css/sidebar.css">
   <link rel="stylesheet" href="/css/composer.css">
   <link rel="stylesheet" href="/css/voice.css">
+  <link rel="stylesheet" href="/css/auth.css">
+  <script type="module" src="/js/auth-view.js"></script>
   <script type="module" src="/js/app.js"></script>
   <script type="module" src="/js/voice.js"></script>
   <script type="module" src="/js/composer.js"></script>
 </head>
 <body>
-  <div class="shell">
+  <main id="auth-view" class="auth-view" aria-label="Sign in to Steep" hidden>
+    <section class="auth-card">
+      <a class="auth-brand" href="/" aria-label="Steep home"><span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 3h14l-1.5 15a4 4 0 0 1-4 3h-3a4 4 0 0 1-4-3L5 3Zm3 8 1 6a1 1 0 1 0 2 0 1 1 0 1 0-2 0Zm5 2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg></span><span class="brand-word">steep<span>.</span></span></a>
+      <h1 id="auth-title" hidden>Check your email</h1>
+      <p id="auth-intro">Enter your email to sign in or create your account</p>
+      <form id="auth-email-form" novalidate>
+        <label class="sr-only" for="auth-email">Email address</label>
+        <div class="auth-email-pill"><input id="auth-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="Your email address" aria-describedby="auth-error" required><button id="auth-continue" class="auth-continue" type="submit" aria-label="Continue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></div>
+      </form>
+      <form id="auth-code-form" novalidate hidden>
+        <div class="auth-digits" role="group" aria-label="Six-digit email code" aria-describedby="auth-error">
+          <input class="auth-digit" aria-label="Digit 1" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6">
+          <input class="auth-digit" aria-label="Digit 2" inputmode="numeric" autocomplete="off" pattern="[0-9]*" maxlength="1">
+          <input class="auth-digit" aria-label="Digit 3" inputmode="numeric" autocomplete="off" pattern="[0-9]*" maxlength="1">
+          <input class="auth-digit" aria-label="Digit 4" inputmode="numeric" autocomplete="off" pattern="[0-9]*" maxlength="1">
+          <input class="auth-digit" aria-label="Digit 5" inputmode="numeric" autocomplete="off" pattern="[0-9]*" maxlength="1">
+          <input class="auth-digit" aria-label="Digit 6" inputmode="numeric" autocomplete="off" pattern="[0-9]*" maxlength="1">
+        </div>
+        <button id="auth-verify" class="auth-verify" type="submit">Verify</button>
+        <button id="auth-resend" class="auth-link" type="button">Resend code</button>
+        <button id="auth-different" class="auth-link" type="button">Use a different email</button>
+      </form>
+      <p id="auth-error" role="alert" hidden></p><p id="auth-status" role="status"></p>
+    </section>
+  </main>
+  <noscript>Please enable JavaScript to sign in to Steep.</noscript>
+  <div class="shell" hidden inert>
     <button class="scrim" id="scrim" aria-label="Close conversation menu" hidden></button>
     <aside class="sidebar" id="sidebar" aria-label="Conversations">
       <div class="side-top"><a class="brand" href="/"><span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 3h14l-1.5 15a4 4 0 0 1-4 3h-3a4 4 0 0 1-4-3L5 3Zm3 8 1 6a1 1 0 1 0 2 0 1 1 0 1 0-2 0Zm5 2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg></span><span class="brand-word">steep<span>.</span></span></a></div>
