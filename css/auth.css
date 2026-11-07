@@ -27,3 +27,8 @@
 .auth-view :is(input,button,a):focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
 .auth-view button:disabled{opacity:.6;cursor:wait;}
 @media(max-width:380px){.auth-digits{gap:6px;}.auth-digit{height:54px;border-radius:14px;}}
+/* Keep autofocus without any visible input highlight, including WebKit. */
+.auth-view :is(input,button,a):focus-visible{outline:none!important;}
+.auth-view input,.auth-view input:is(:focus,:focus-visible,:active){outline:none!important;box-shadow:none!important;border:0!important;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;}
+.auth-view input:-webkit-autofill,.auth-view input:-webkit-autofill:focus{outline:none!important;border:0!important;box-shadow:0 0 0 1000px var(--cream) inset!important;-webkit-text-fill-color:var(--ink);}
+.auth-email-pill:focus-within{outline:none;}
