@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
         typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000)) {
     return res.status(400).json({ error: 'Please send a valid conversation.' });
   }
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+  const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) return res.status(500).json({ error: 'Invalid model configuration.' });
   const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
   try {
