@@ -1,4 +1,4 @@
-import { onAuthChange, sendCode, verifyCode } from './auth.js';
+import { onAuthChange, sendCode, verifyCode, maskEmail } from './auth.js';
 
 // View only; session and network logic live in auth.js.
 const $ = id => document.getElementById(id);
@@ -11,7 +11,7 @@ function message(text) { notice.textContent = text; notice.hidden = !text; }
 function screen(code) {
   emailForm.hidden = code; codeForm.hidden = !code;
   $('auth-title').hidden = !code;
-  $('auth-intro').textContent = code ? 'We sent a 6-digit code to ' + email : 'Enter your email to sign in or create your account';
+  $('auth-intro').textContent = code ? 'We sent a 6-digit code to ' + maskEmail(email) : 'Enter your email to sign in or create your account';
   message(''); (code ? boxes[0] : emailInput).focus();
 }
 function pending(value, button, label) {
