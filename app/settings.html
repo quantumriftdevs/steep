@@ -11,13 +11,26 @@
 </head>
 <body>
   <main class="settings-page">
-    <a class="back-link" href="/app/" aria-label="Back to chat"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg> Back to chat</a>
-    <h1>Settings</h1>
-    <section class="settings-section" aria-labelledby="connection-heading">
-      <h2 id="connection-heading">Connection</h2>
-      <p id="connection" role="status">Checking connection…</p>
-      <p class="settings-note">A little check that Steep is ready to chat.</p>
+    <header class="settings-header"><a class="back-link" href="/app/" aria-label="Back to chat"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg></a><h1>Settings</h1></header>
+    <section class="account" aria-label="Your account">
+      <span id="profile-avatar" class="profile-avatar" aria-label="Your initials">S</span>
+      <div><h2 id="account-name">Your Steep space</h2><p>Steep · early access</p></div>
     </section>
+    <section class="settings-group" aria-label="Personal settings">
+      <button class="settings-row" type="button" aria-expanded="false" aria-controls="profile-panel"><span>Profile</span></button>
+      <div class="settings-panel" id="profile-panel" hidden>
+        <form class="name-form" id="profile-form"><label for="settings-name">What should Steep call you?</label><div class="edit-name"><input id="settings-name" maxlength="60" autocomplete="nickname" required><button type="submit">Save name</button></div></form>
+      </div>
+      <button class="settings-row" type="button" aria-expanded="false" aria-controls="connection-panel"><span>Connection</span><span id="connection" role="status">Checking connection…</span></button>
+      <div class="settings-panel" id="connection-panel" hidden><p>This checks whether Steep's server has a key configured. If replies fail, the key, model or quota may still need a look.</p></div>
+    </section>
+    <section class="settings-group" aria-label="Chat and app settings">
+      <button class="settings-row" type="button" aria-expanded="false" aria-controls="clear-panel"><span>Clear chats</span></button>
+      <div class="settings-panel" id="clear-panel" hidden><p>Clear all saved chats in this browser? This can't be undone. Your name stays.</p><div class="panel-actions"><button id="confirm-clear" type="button">Yes, clear chats</button><button id="cancel-clear" type="button">Keep my chats</button></div></div>
+      <button class="settings-row" type="button" aria-expanded="false" aria-controls="about-panel"><span>About Steep</span></button>
+      <div class="settings-panel" id="about-panel" hidden><p>A warm little space for your next big creator idea. Talk niches, growth and the messy bits with Steep.</p><a href="/">Meet Steep on the home page</a></div>
+    </section>
+    <p id="settings-feedback" role="status"></p>
   </main>
 </body>
 </html>
