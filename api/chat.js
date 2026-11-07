@@ -21,7 +21,10 @@ module.exports = async (req, res) => {
       body: JSON.stringify({ systemInstruction: { parts: [{ text: prompt }] }, contents })
     });
     const data = await response.json();
-    if (!response.ok) return res.status(502).json({ error: 'Steep could not reach the model. Check your key, model and quota in Vercel and Google AI Studio.' });
+    if (!response.ok) return res.status(502).json({
+      error: 'Steep could not reach the model. Check your key, model and quota in Vercel and Google AI Studio.',
+      detail: `Gemini HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message.slice(0, 500) : 'Upstream request failed'}`
+    });
     const reply = (data.candidates?.[0]?.content?.parts || []).filter(p => typeof p.text === 'string' && !p.thought).map(p => p.text).join('');
     if (!reply.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
     return res.status(200).json({ reply });
