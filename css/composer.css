@@ -1,0 +1,11 @@
+/* Reference-inspired input only; surrounding layout stays unchanged. */
+.composer{width:100%;max-width:448px;min-height:60px;margin-inline:auto;align-items:center;gap:12px;padding:7px 7px 7px 20px;border:1px solid #ece8e1;border-radius:999px;background:#f6f3ee;box-shadow:none;}
+.composer:focus-within{border-color:#d9d1c7;}
+.composer textarea{font-size:16px;line-height:1.4;font-weight:400;padding:8px 0;}
+.composer textarea::placeholder{color:#9a9590;opacity:1;}
+.composer-decoration{display:flex;align-items:center;justify-content:center;flex:none;width:20px;height:24px;color:#736e68;pointer-events:none;}
+.composer-decoration svg{width:20px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.composer #send{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--cream);padding:10px;}
+.composer #send svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;}
+.composer #send:focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
+@media(max-width:380px){.composer{gap:9px;padding-left:16px;}.composer-decoration{width:18px;}}
