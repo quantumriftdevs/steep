@@ -17,7 +17,7 @@
 .auth-continue{display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #ffffff55;border-radius:50%;background:var(--amber);color:var(--cream);box-shadow:inset 0 1px 2px #ffffff55,0 3px 8px #4a2d2114;}
 .auth-continue svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .auth-digits{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:0 0 24px;}
-.auth-digit{width:100%;height:62px;text-align:center;border:1px solid var(--line);border-radius:18px;background:var(--cream);box-shadow:inset 0 1px 0 #fff,0 5px 16px #4a2d2107;font-size:25px!important;caret-color:var(--amber);}
+.auth-digit{width:100%;height:62px;text-align:center;border:1.5px solid #d8c5b2;border-radius:18px;background:var(--paper);box-shadow:inset 0 1px 0 #fff,0 5px 16px #4a2d2107;font-size:25px!important;caret-color:var(--amber);}
 .auth-verify{width:100%;border:1px solid #ffffff55;border-radius:999px;background:var(--amber);color:var(--cream);padding:14px 24px;font-weight:700!important;box-shadow:inset 0 1px 1px #ffffff55,0 5px 18px #4a2d2110;}
 .auth-link{display:block;border:0;background:transparent;margin:18px auto 0;padding:3px 8px;color:var(--muted);font-size:14px!important;text-underline-offset:4px;}
 .auth-link:hover{text-decoration:underline;}
@@ -32,3 +32,5 @@
 .auth-view input,.auth-view input:is(:focus,:focus-visible,:active){outline:none!important;box-shadow:none!important;border:0!important;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;}
 .auth-view input:-webkit-autofill,.auth-view input:-webkit-autofill:focus{outline:none!important;border:0!important;box-shadow:0 0 0 1000px var(--cream) inset!important;-webkit-text-fill-color:var(--ink);}
 .auth-email-pill:focus-within{outline:none;}
+.auth-view input.auth-digit,.auth-view input.auth-digit:is(:focus,:focus-visible,:active){border:1.5px solid #d8c5b2!important;background:var(--paper)!important;box-shadow:inset 0 1px 0 #fff,0 5px 16px #4a2d2107!important;}
+.auth-view input.auth-digit:-webkit-autofill,.auth-view input.auth-digit:-webkit-autofill:focus{box-shadow:inset 0 1px 0 #fff,0 5px 16px #4a2d2107!important;background:var(--paper)!important;}
