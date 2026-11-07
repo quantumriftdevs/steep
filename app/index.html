@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chat with Steep</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/app-anim.css"><link rel="stylesheet" href="/css/sidebar.css">
+  <link rel="stylesheet" href="/css/composer.css">
   <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/composer.js"></script>
 </head>
 <body>
   <div class="shell">
@@ -18,7 +20,7 @@
       <div class="side-bottom"><span id="profile-avatar" class="profile-avatar" aria-label="Your profile">S</span><button id="new-chat" class="new-chat"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> <span>New chat</span></button></div>
     </aside>
     <main class="workspace">
-      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection" role="status">Checking connection…</span></header>
+      <header class="topbar"><button id="open-menu" class="icon mobile" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="top-brand" href="/">steep<span>.</span></a><span id="connection"></span></header>
       <div id="thread" class="thread" aria-live="polite">
         <div class="thread-inner" id="messages"></div>
       </div>
