@@ -8,3 +8,7 @@
  :where(.glass-disc,.chat-pill button,.chat-options button,.settings-row,.back-link,#send,.profile-avatar,.new-chat,#conversations button,.side-nav,.response-actions button){transition:none!important;scale:none!important;rotate:none!important;filter:none!important;}
  .topbar .chat-actions,.chat-pill{transition:none!important;}
 }
+/* Preserve the ghost's crossfade while adding the same release spring. */
+.topbar .chat-actions #ghost-chat{transition:opacity .2s ease,transform .36s cubic-bezier(.34,1.56,.64,1),scale .36s cubic-bezier(.34,1.56,.64,1),rotate .36s cubic-bezier(.34,1.56,.64,1),filter .36s ease;}
+.topbar .chat-actions #ghost-chat:is(:active,.is-pressed){transition-duration:.18s;}
+@media(prefers-reduced-motion:reduce){.topbar .chat-actions #ghost-chat{transition:none;}}
