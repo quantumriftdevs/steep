@@ -77,3 +77,10 @@ window.addEventListener('storage', event => {
   generation++; refreshing = null; session = read(); schedule(); listeners.forEach(fn => fn(session));
 });
 if (session) schedule();
+// Display only: network requests and stored sessions keep the full email.
+export function maskEmail(email) {
+  const at = String(email || '').lastIndexOf('@');
+  if (at < 1) return '';
+  const local = email.slice(0, at), domain = email.slice(at);
+  return local[0] + (local.length <= 4 ? '****' : '*****' + local.slice(-1)) + domain;
+}
