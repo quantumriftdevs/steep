@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Please send a valid conversation.' });
   }
   if (groqKey) {
-    const model = (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile').trim();
+    const model = (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim();
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
