@@ -74,7 +74,7 @@ function render(welcome = false) {
     messages.append(ghostEmpty());
   } else if (!current.messages.length) {
     const empty = $('empty-template').content.firstElementChild.cloneNode(true); setupGreeting(empty);
-    ['Help me find my niche', 'Why is my RPM low?', 'Help me draft an appeal'].forEach(text => {
+    ['Plan my day', 'Help me prioritize', 'Break down a big goal'].forEach(text => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
       button.onclick = () => { input.value = text; input.focus(); }; empty.querySelector('.examples').append(button);
     });
