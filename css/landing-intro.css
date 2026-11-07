@@ -1,8 +1,1 @@
 .hero.reveal{animation:none}
-.intro-agent{--agent-color:#f33d32;color:var(--agent-color);position:fixed;left:0;top:0;z-index:9999;pointer-events:none;will-change:transform}
-.intro-agent.agent-2{--agent-color:#eada54}
-.intro-agent.agent-3{--agent-color:#90cfb3}
-.intro-agent.agent-4{--agent-color:#a59af4}
-.intro-agent svg{display:block;filter:drop-shadow(0 1px 2px #000)}
-.intro-agent span{position:absolute;left:15px;top:15px;padding:3px 5px;background:var(--agent-color);color:#111;font:9px monospace;white-space:nowrap}
-@media print{.intro-agent{display:none}}
