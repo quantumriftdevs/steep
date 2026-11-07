@@ -20,3 +20,10 @@
 .ghost-mode .top-brand{visibility:hidden;}.topbar.ghost-mode .chat-actions{background:var(--ink);border-color:var(--ink);}
 .topbar.ghost-mode #ghost-chat{color:var(--cream);}
 @media(prefers-reduced-motion:reduce){.topbar .chat-actions,.chat-pill,.topbar .chat-actions #ghost-chat{transition:none;}}
+/* Ghost switch: hollow when off, filled on a warm near-black disc when on. */
+#ghost-chat svg{position:absolute;left:9px;top:9px;transition:opacity .22s ease,scale .32s cubic-bezier(.34,1.56,.64,1);}
+#ghost-chat .ghost-filled{opacity:0;scale:.85;}
+#ghost-chat[aria-pressed="true"] .ghost-outline{opacity:0;scale:.85;}
+#ghost-chat[aria-pressed="true"] .ghost-filled{opacity:1;scale:1;}
+.topbar.ghost-mode .chat-actions{background:#1c1512;border-color:#1c1512;}
+@media(prefers-reduced-motion:reduce){#ghost-chat svg{transition:none;}}
