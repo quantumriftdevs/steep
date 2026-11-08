@@ -1,6 +1,6 @@
 import { authHeaders, getSession, logout } from './auth.js';
 import { setupProfile, recentLabel } from './sidebar.js';
-import { loadChats, saveChats, newChat } from './store.js';
+import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
 import { setupChatActions } from './chat-actions.js';
 import { responseActions, stopSpeech } from './actions.js';
 import { bubble, animate } from './messages.js';
@@ -109,8 +109,8 @@ $('composer').addEventListener('submit', async e => {
   const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
     const history = current.messages.slice(-99).map(({ role, content, attachment }) => ({ role, content: attachment ? attachmentNote(attachment) + ' ' + content : content })); history[history.length - 1].content = prepared.prompt;
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...await authHeaders() }, body: JSON.stringify({ messages: history }) });
-    if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
+    const headers = await authHeaders(); if (current !== active || !getSession()) return;     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ messages: history }) });
+    if (current !== active) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (current !== active) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
@@ -119,8 +119,8 @@ $('composer').addEventListener('submit', async e => {
     current.messages.push({ role: 'assistant', content: data.reply }); save();
   } catch (err) {
     if (current !== active) return;
-    current.messages.pop(); if (first) current.title = 'New chat';
-    input.value = text; if (prepared.file) restoreAttachment(prepared.file); showError(err.message || 'Could not connect. Try again.'); save();
+    // Keep the sent message locally even when the model/network is unavailable.
+    input.value = ''; showError(err.message || 'Could not connect. Try again.'); save();
   } finally { busy = false; lockAttachment(false); $('send').disabled = false; render(); }
 });
-setupProfile(); render(true);
+onChatsChange(reset => { const active = current; chats = loadChats(); if (reset) { discardTemporary(); current = chats[0] || newChat(); input.value = ''; showError(''); menu(false); } else if (busy) { if (!active.temporary) { chats = chats.filter(c => c.id !== active.id); chats.unshift(active); } return; } else { current = active.temporary ? active : chats.find(c => c.id === active.id) || chats[0] || newChat(); } if (!chats.length && !current.temporary) chats = [current]; render(); }); setupProfile(); render(true);
