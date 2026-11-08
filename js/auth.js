@@ -2,10 +2,19 @@
 const KEY = 'steep-auth-v1';
 let session = read(), config, refreshing, timer, generation = 0;
 const listeners = new Set();
+function identity(value) {
+  if (value?.user && !value.user.id) {
+    try {
+      const part = value.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      value.user.id = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, '='))).sub;
+    } catch {}
+  }
+  return value;
+}
 function read() {
   try {
-    const value = JSON.parse(localStorage.getItem(KEY));
-    return value?.access_token && value?.refresh_token && value?.user?.email ? value : null;
+    const value = identity(JSON.parse(localStorage.getItem(KEY)));
+    return value?.access_token && value?.refresh_token && value?.user?.email && value.user.id ? value : null;
   } catch { return null; }
 }
 export function getSession() { return session; }
@@ -15,9 +24,10 @@ function schedule() {
   if (session) timer = setTimeout(() => refreshSession(), Math.min(2147483647, Math.max(1000, ((session.expires_at || 0) * 1000 - Date.now() - 60000))));
 }
 function save(value) {
-  if (!value?.access_token || !value?.refresh_token || !value?.user?.email) throw new Error('Please try signing in again.');
+  identity(value);
+  if (!value?.access_token || !value?.refresh_token || !value?.user?.email || !value.user.id) throw new Error('Please try signing in again.');
   const next = { access_token: value.access_token, refresh_token: value.refresh_token,
-    user: { email: value.user.email }, expires_at: value.expires_at || Math.floor(Date.now() / 1000) + (value.expires_in || 3600) };
+    user: { id: value.user.id, email: value.user.email }, expires_at: value.expires_at || Math.floor(Date.now() / 1000) + (value.expires_in || 3600) };
   try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { throw new Error('Please allow browser storage to stay signed in.'); }
   session = next; schedule(); listeners.forEach(fn => fn(session));
 }
