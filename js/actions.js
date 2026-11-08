@@ -1,4 +1,5 @@
 import './press.js';
+import { downloadImage } from './image-gen.js';
 const css = document.createElement('link');
 css.rel = 'stylesheet'; css.href = '/css/responses.css'; document.head.append(css);
 let speaking;
@@ -62,6 +63,8 @@ export function responseActions(body, message, api) {
     } catch (e) { if (api.current() === chat) api.notice(e.message || 'Could not regenerate. Try again.'); }
     finally { api.lock(false); }
   });
+  const images = [...body.querySelectorAll('.sg-card')];
+  images.forEach((card, index) => button(images.length > 1 ? 'Download image ' + (index + 1) : 'Download image', '<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>', () => downloadImage(card, tell)));
   row.append(note); body.after(row);
 }
 // Passive scroll events include iOS momentum scrolling; opacity keeps row space.
