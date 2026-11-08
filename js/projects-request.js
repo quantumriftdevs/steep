@@ -1,7 +1,7 @@
 import { flushProject } from './projects-store.js';
 import { bytes } from './projects-cache.js';
 import { authHeaders, getSession } from './auth.js';
-import { modelPayload } from './messages.js';
+import { modelPayload } from './attach-payload.js';
 export async function projectPayload(chat, payload) {
   if (!chat.projectId) return payload.body;
   const project = await flushProject(chat.projectId);
