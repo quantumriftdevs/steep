@@ -1,10 +1,10 @@
-const { prompt } = require('./personality');
+const { prompt } = require('./personality'); const { projectPrompt, providerBody } = require('./project-context');
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
   const authUrl = (process.env.SUPABASE_URL || '').trim();
-  if (authUrl) {
+  let userId;   if (authUrl) {
     const authorization = req.headers.authorization || '';
     const unauthorized = () => res.status(401).json({ error: 'Please sign in to keep using Steep.' });
     if (!/^Bearer\s+\S+$/i.test(authorization)) return unauthorized();
@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
         headers: { apikey: process.env.SUPABASE_ANON_KEY || '', Authorization: authorization },
         signal: AbortSignal.timeout(8000)
       });
-      if (!user.ok || !(await user.json()).id) return unauthorized();
+      if (!user.ok || !(userId = (await user.json()).id)) return unauthorized();
     } catch (_) { return unauthorized(); }
   }
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
@@ -29,13 +29,13 @@ module.exports = async (req, res) => {
   }
   const imageCount = messages.reduce((count, m) => count + (m.images?.length || 0), 0);
   if (imageCount > 3) return res.status(400).json({ error: 'Only 3 images can be sent per request.' });
-  if (groqKey) {
+  let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;   if (groqKey) {
     const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const body = providerBody({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: prompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] })
+        body
       });
       const data = await response.json();
       if (!response.ok) return res.status(502).json({
@@ -53,10 +53,10 @@ module.exports = async (req, res) => {
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) return res.status(500).json({ error: 'Invalid model configuration.' });
   const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }, ...(m.images || []).map(image => ({ inlineData: { mimeType: 'image/jpeg', data: image.slice(23) } }))] }));
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    const body = providerBody({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: prompt }] }, contents })
+      body
     });
     const data = await response.json();
     if (!response.ok) return res.status(502).json({
