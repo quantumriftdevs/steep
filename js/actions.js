@@ -1,4 +1,4 @@
-import './press.js';
+import './press.js'; import { projectRetry } from './projects-request.js'; import { projectDeleted } from './projects-context.js'; import { getSession } from './auth.js';
 import { downloadImage } from './image-gen.js';
 const css = document.createElement('link');
 css.rel = 'stylesheet'; css.href = '/css/responses.css'; document.head.append(css);
@@ -54,9 +54,9 @@ export function responseActions(body, message, api) {
     const history = chat.messages.slice(0, end + 1).slice(-99).map(({ role, content }) => ({ role, content }));
     api.notice(''); api.lock(true);
     try {
-      const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) });
+      const prepared = chat.projectId ? await projectRetry(chat, chat.messages.slice(0, end + 1)) : null; if (api.current() !== chat || projectDeleted(chat) || (prepared && getSession()?.user?.id !== prepared.owner)) return; if (prepared?.notice) api.notice(prepared.notice); const response = await fetch('/api/chat', { method: 'POST', headers: prepared?.headers || { 'Content-Type': 'application/json' }, body: prepared?.body || JSON.stringify({ messages: history }) });
       const data = await response.json();
-      if (api.current() !== chat) return;
+      if (api.current() !== chat || projectDeleted(chat) || (prepared && getSession()?.user?.id !== prepared.owner)) return;
       if (!response.ok) throw new Error(data.error || 'Could not regenerate. Try again.');
       if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
       message.content = data.reply; message.feedback = null; api.save();
