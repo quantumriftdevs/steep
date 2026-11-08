@@ -1,52 +1,55 @@
 import { attachmentView } from './attach-view.js';
+import { readAttachment } from './attach-text.js';
+import { isImage, imageAttachment } from './attach-image.js';
+import { attachmentNote } from './attach-payload.js';
+export { attachmentNote } from './attach-payload.js';
 const form = document.getElementById('composer'), input = document.getElementById('prompt');
 const plus = document.getElementById('attach-plus'), picker = document.getElementById('pick-file');
 const chip = document.getElementById('attach-chip');
-let picked = null, url = '', locked = false;
+let picked = [], urls = [], locked = false, warning = '';
+picker.multiple = true;
 function unavailable() { return locked || form.classList.contains('voice-active'); }
 plus.onclick = () => { if (unavailable()) return; picker.value = ''; picker.click(); };
-picker.onchange = () => { if (picker.files[0] && !unavailable()) restoreAttachment(picker.files[0]); picker.value = ''; };
+picker.onchange = () => { if (picker.files.length && !unavailable()) restoreAttachment([...picker.files]); picker.value = ''; };
 function update() {
-  if (url) URL.revokeObjectURL(url); url = '';
-  chip.replaceChildren(); chip.hidden = !picked; form.dataset.attachment = picked ? 'true' : '';
-  if (picked) {
-    const image = picked.type.startsWith('image/');
-    if (image) url = URL.createObjectURL(picked);
-    chip.append(attachmentView({ name: picked.name, kind: image ? 'image' : 'file', thumb: url }, true));
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', 'Remove attachment');
-    remove.disabled = unavailable(); remove.onclick = () => clearAttachment(); chip.append(remove);
-  }
+  urls.forEach(url => URL.revokeObjectURL(url)); urls = [];
+  chip.replaceChildren(); chip.hidden = !picked.length && !warning; form.dataset.attachment = picked.length ? 'true' : '';
+  picked.forEach((file, index) => {
+    const image = isImage(file), thumb = image ? URL.createObjectURL(file) : '';
+    if (thumb) urls.push(thumb);
+    chip.append(attachmentView({ name: file.name, kind: image ? 'image' : 'file', thumb }, true));
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '\u00d7';
+    remove.setAttribute('aria-label', 'Remove attachment' + (picked.length > 1 ? ': ' + file.name : ''));
+    remove.disabled = unavailable(); remove.onclick = () => { picked.splice(index, 1); warning = ''; update(); }; chip.append(remove);
+  });
+  if (warning) { const note = document.createElement('span'); note.setAttribute('role', 'status'); note.textContent = warning; chip.append(note); }
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
-export function hasAttachment() { return !!picked; }
-export function clearAttachment() { picked = null; update(); }
-export function restoreAttachment(file) { picked = file; update(); }
+export function hasAttachment() { return picked.length > 0; }
+export function clearAttachment() { picked = []; warning = ''; update(); }
+export function restoreAttachment(files) {
+  for (const file of Array.isArray(files) ? files : [files]) {
+    if (isImage(file) && picked.filter(isImage).length >= 3) { warning = 'Only 3 images per message; extra images were not added.'; continue; }
+    picked.push(file);
+  }
+  update();
+}
 export function lockAttachment(value) { locked = value; sync(); }
-function sync() { plus.disabled = unavailable(); const remove = chip.querySelector('button'); if (remove) remove.disabled = unavailable(); }
+function sync() { plus.disabled = unavailable(); chip.querySelectorAll('button').forEach(button => { button.disabled = unavailable(); }); }
 new MutationObserver(sync).observe(form, { attributes: true, attributeFilter: ['class'] });
 window.addEventListener('pagehide', clearAttachment);
-function thumbnail(file) {
-  return new Promise((resolve, reject) => {
-    const src = URL.createObjectURL(file), img = new Image();
-    const done = () => URL.revokeObjectURL(src);
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
-        const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(img.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fffefa'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', .78));
-      } catch { reject(new Error('Could not prepare this photo. Try a JPEG or PNG.')); } finally { done(); }
-    };
-    img.onerror = () => { done(); reject(new Error('Could not open this photo. Try a JPEG or PNG.')); }; img.src = src;
-  });
-}
-export function attachmentNote(a) { return a ? (a.kind === 'image' ? '[The user attached a photo: ' + a.name + ']' : 'File attached: ' + a.name) : ''; }
 export async function prepareAttachment(text) {
-  const file = picked; if (!file) return { prompt: text };
-  const image = file.type.startsWith('image/'), attachment = { name: file.name.slice(0, 255), kind: image ? 'image' : 'file' };
-  let note = attachmentNote(attachment);
-  if (image) attachment.thumb = await thumbnail(file);
-  else if (!file.type.startsWith('video/') && file.size < 150 * 1024 && (/^(text\/|application\/(json|javascript|xml))/.test(file.type) || /\.(txt|md|csv|json|js|mjs|ts|tsx|jsx|py|html?|css|xml|yaml|yml|log|sql|sh|toml|ini|svg)$/i.test(file.name))) note += '\n' + (await file.text()).slice(0, 24000);
-  else note += '\n[File contents are unavailable to the text-only model.]';
-  return { attachment, file, prompt: note + '\n\n' + (text || 'Please help with this file.') };
+  const files = picked.slice(), notice = warning;
+  if (!files.length) return { prompt: text };
+  const attachment = [];
+  for (const file of files) {
+    const a = { name: file.name.slice(0, 255), kind: isImage(file) ? 'image' : 'file' };
+    if (a.kind === 'image') {
+      try { Object.assign(a, await imageAttachment(file)); }
+      catch (error) { a.kind = 'file'; a.note = error.message || 'Photo contents unavailable.'; }
+    } else Object.assign(a, file.type.startsWith('video/') ? { note: 'File contents are unavailable.' } : await readAttachment(file));
+    attachment.push(a);
+  }
+  if (notice) attachment[0].note = [attachment[0].note, notice].filter(Boolean).join(' ');
+  return { attachment, prompt: attachmentNote(attachment) + '\n\n' + (text || 'Please help with this file.'), notice };
 }
