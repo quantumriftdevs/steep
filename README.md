@@ -26,7 +26,7 @@ Steep is an AI assistant for TikTok creators: a friendly place to talk niches, R
 
 Optionally set `GEMINI_MODEL` in Vercel to override the default `gemini-3.8-flash` model, then redeploy. The status indicator shows whether a key is set, not whether it is valid. Replies appear word by word after the server receives the full answer.
 
-Chats are stored in the browser's localStorage on that device. This demo has no sign-in or rate limiting: a public deployment allows visitors to use the chat endpoint and potentially consume your Gemini quota or incur charges. Check your Google usage and billing settings before sharing it widely. Steep can make mistakes; check current TikTok rules before acting.
+Chats are stored in the browser's localStorage on that device. This demo has no sign-in or rate limiting: a public deployment allows visitors to use the chat endpoint and potentially consume your Gemini quota or incur charges. Check your Google usage and billing settings before sharing it widely. Steep can make mistakes; check current TikTok rules before acting..
 <!-- deploy trigger Nov 6 -->
 
 <!-- Native attachment picker deployment refresh: 2026-11-07. -->
