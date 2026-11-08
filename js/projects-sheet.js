@@ -19,7 +19,7 @@ export function projectSheet(title, build, beforeClose = () => true) {
     if (!overlay.isConnected) return;
     overlay.remove(); siblings.forEach(([el, inert]) => { el.inert = inert; }); document.body.style.overflow = overflow;
     document.removeEventListener('keydown', keys); currentSheet = null;
-    if (previous?.isConnected && !previous.closest('[inert]')) previous.focus();
+    const target = [previous, ...document.querySelectorAll('[aria-label="Project settings"],#new-chat,#open-menu')].find(el => el?.isConnected && !el.closest('[inert],[hidden]') && el.getClientRects().length); target?.focus();
   }
   function close(force = false) {
     if (closing || (!force && beforeClose() === false)) return false;
