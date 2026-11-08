@@ -20,18 +20,22 @@ module.exports = async (req, res) => {
   const key = (process.env.GEMINI_API_KEY || '').trim();
   if (!groqKey && !key) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add the API key in Vercel" });
   const messages = req.body && req.body.messages;
+  if (Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8') > 3500000) return res.status(413).json({ error: 'Message exceeds the 3.5 MB payload limit.' });
+  const validImage = image => typeof image === 'string' && /^data:image\/jpeg;base64,\/[9]j\/[A-Za-z0-9+/]+={0,2}$/.test(image) && (image.length - 23) % 4 === 0;
   if (!Array.isArray(messages) || !messages.length || messages.length > 100 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) ||
-        typeof m.content !== 'string' || !m.content.trim() || m.content.length > 40000)) {
+        typeof m.content !== 'string' || !m.content.trim() || m.content.length > 3500000 || (m.images !== undefined && (m.role !== 'user' || !Array.isArray(m.images) || m.images.length > 3 || m.images.some(image => !validImage(image)))))) {
     return res.status(400).json({ error: 'Please send a valid conversation.' });
   }
+  const imageCount = messages.reduce((count, m) => count + (m.images?.length || 0), 0);
+  if (imageCount > 3) return res.status(400).json({ error: 'Only 3 images can be sent per request.' });
   if (groqKey) {
-    const model = (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim();
+    const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: prompt }, ...messages.map(({ role, content }) => ({ role, content }))] })
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: prompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] })
       });
       const data = await response.json();
       if (!response.ok) return res.status(502).json({
@@ -47,7 +51,7 @@ module.exports = async (req, res) => {
   }
   const model = (process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite').trim();
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) return res.status(500).json({ error: 'Invalid model configuration.' });
-  const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }, ...(m.images || []).map(image => ({ inlineData: { mimeType: 'image/jpeg', data: image.slice(23) } }))] }));
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
