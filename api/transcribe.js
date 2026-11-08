@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
     const raw = await response.text();
     let data;
     try { data = JSON.parse(raw); } catch (_) { data = {}; }
-    if (!response.ok) return res.status(502).json({ error: 'Steep could not reach the model. Check your key, model and quota in Vercel and Google AI Studio.', detail: `Groq HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message : raw || 'Upstream request failed'}`.slice(0, 500) });
+    if (!response.ok) return res.status(502).json({ error: 'Steep could not reach the model. Check your Groq key, model and quota in Vercel.', detail: `Groq HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message : raw || 'Upstream request failed'}`.slice(0, 500) });
     if (typeof data.text !== 'string' || !data.text.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
     return res.status(200).json({ text: data.text, provider: 'groq' });
   } catch (_) {
