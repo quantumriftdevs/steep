@@ -22,15 +22,15 @@ export function claimLegacy(user) {
 }
 export function toRow(chat, user) {
   return { id: chat.id, user_id: user, title: chat.title || 'New chat',
-    messages: [...chat.messages, { steep_meta: 1, customTitle: chat.customTitle || '', pinned: !!chat.pinned }],
+    messages: [...chat.messages, { steep_meta: 1, customTitle: chat.customTitle || '', pinned: !!chat.pinned, ...(chat.projectId ? { projectId: chat.projectId } : {}) }],
     updated_at: chat.updated_at || new Date().toISOString() };
 }
 export function fromRow(row) {
   const messages = Array.isArray(row.messages) ? row.messages : [];
   const meta = messages.find(m => m?.steep_meta === 1) || {};
   return { id: row.id, title: row.title, messages: messages.filter(m => m && m.steep_meta !== 1),
-    customTitle: meta.customTitle || '', pinned: !!meta.pinned, updated_at: row.updated_at };
+    customTitle: meta.customTitle || '', pinned: !!meta.pinned, ...(typeof meta.projectId === 'string' ? { projectId: meta.projectId } : {}), updated_at: row.updated_at };
 }
 export function fingerprint(chat) {
-  return JSON.stringify([chat.title, chat.customTitle || '', !!chat.pinned, chat.messages]);
+  return JSON.stringify([chat.title, chat.customTitle || '', !!chat.pinned, chat.messages, chat.projectId || '']);
 }
