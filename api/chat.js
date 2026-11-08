@@ -17,8 +17,7 @@ module.exports = async (req, res) => {
     } catch (_) { return unauthorized(); }
   }
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
-  const key = (process.env.GEMINI_API_KEY || '').trim();
-  if (!groqKey && !key) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add the API key in Vercel" });
+  if (!groqKey) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add GROQ_API_KEY in Vercel" });
   const messages = req.body && req.body.messages;
   if (Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8') > 3500000) return res.status(413).json({ error: 'Message exceeds the 3.5 MB payload limit.' });
   const validImage = image => typeof image === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(image) && (image.length - 23) % 4 === 0;
@@ -29,7 +28,7 @@ module.exports = async (req, res) => {
   }
   const imageCount = messages.reduce((count, m) => count + (m.images?.length || 0), 0);
   if (imageCount > 3) return res.status(400).json({ error: 'Only 3 images can be sent per request.' });
-  let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;   if (groqKey) {
+  let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
     const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
     try {
       const body = providerBody({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -39,7 +38,7 @@ module.exports = async (req, res) => {
       });
       const data = await response.json();
       if (!response.ok) return res.status(502).json({
-        error: 'Steep could not reach the model. Check your key, model and quota in Vercel and Google AI Studio.',
+        error: 'Steep could not reach the model. Check your Groq key, model and quota in Vercel.',
         detail: `Groq HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message.slice(0, 500) : 'Upstream request failed'}`
       });
       const reply = data.choices?.[0]?.message?.content;
@@ -48,25 +47,4 @@ module.exports = async (req, res) => {
     } catch (error) {
       return res.status(502).json({ error: 'Steep could not connect to the model. Try again.' });
     }
-  }
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite').trim();
-  if (!/^[a-zA-Z0-9._-]+$/.test(model)) return res.status(500).json({ error: 'Invalid model configuration.' });
-  const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }, ...(m.images || []).map(image => ({ inlineData: { mimeType: 'image/jpeg', data: image.slice(23) } }))] }));
-  try {
-    const body = providerBody({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body
-    });
-    const data = await response.json();
-    if (!response.ok) return res.status(502).json({
-      error: 'Steep could not reach the model. Check your key, model and quota in Vercel and Google AI Studio.',
-      detail: `Gemini HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message.slice(0, 500) : 'Upstream request failed'}`
-    });
-    const reply = (data.candidates?.[0]?.content?.parts || []).filter(p => typeof p.text === 'string' && !p.thought).map(p => p.text).join('');
-    if (!reply.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
-    return res.status(200).json({ reply, provider: 'gemini' });
-  } catch (error) {
-    return res.status(502).json({ error: 'Steep could not connect to the model. Try again.' });
-  }
 };
