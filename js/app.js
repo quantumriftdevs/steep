@@ -3,7 +3,7 @@ import { setupProfile, recentLabel } from './sidebar.js';
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
 import { setupChatActions } from './chat-actions.js';
 import { responseActions, stopSpeech } from './actions.js';
-import { bubble, animate } from './messages.js';
+import { bubble, animate } from './messages.js'; import { modelPayload } from './attach-payload.js';
 import { temporaryChat, ghostEmpty, setupGhost, updateGhost } from './ghost.js';
 import { setupGreeting } from './greet.js'; import { hasAttachment, clearAttachment, restoreAttachment, lockAttachment, prepareAttachment, attachmentNote } from './attach.js';
 
@@ -108,8 +108,8 @@ $('composer').addEventListener('submit', async e => {
   input.value = ''; input.style.height = 'auto'; render();
   const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
-    const history = current.messages.slice(-99).map(({ role, content, attachment }) => ({ role, content: attachment ? attachmentNote(attachment) + ' ' + content : content })); history[history.length - 1].content = prepared.prompt;
-    const headers = await authHeaders(); if (current !== active || !getSession()) return;     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ messages: history }) });
+    const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
+    const headers = await authHeaders(); if (current !== active || !getSession()) return;     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: payload.body });
     if (current !== active) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (current !== active) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
