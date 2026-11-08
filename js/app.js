@@ -17,7 +17,7 @@ const ghostTitle = document.createElement('span'); ghostTitle.className = 'ghost
 ghostTitle.textContent = 'Ghost mode'; ghostTitle.hidden = true;
 document.querySelector('.topbar').append(ghostTitle);
 const actions = setupChatActions(ghost, {
-  current: () => current, newChat: () => $('new-chat').click(), notice: showError,
+  current: () => current, newChat: () => { if (busy) return; const id = current.projectId; discardTemporary(); current = tagProjectChat(newChat(), id); chats.unshift(current); enterProjectChat(current); input.value = ''; showError(''); menu(false); save(); render(); input.focus(); }, notice: showError,
   change: () => { save(); renderList(); },
   remove: () => {
     const id = current.id; discardTemporary(); chats = chats.filter(c => c.id !== id);
