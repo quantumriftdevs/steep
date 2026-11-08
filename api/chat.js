@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
   if (!groqKey && !key) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add the API key in Vercel" });
   const messages = req.body && req.body.messages;
   if (Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8') > 3500000) return res.status(413).json({ error: 'Message exceeds the 3.5 MB payload limit.' });
-  const validImage = image => typeof image === 'string' && /^data:image\/jpeg;base64,\/[9]j\/[A-Za-z0-9+/]+={0,2}$/.test(image) && (image.length - 23) % 4 === 0;
+  const validImage = image => typeof image === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(image) && (image.length - 23) % 4 === 0;
   if (!Array.isArray(messages) || !messages.length || messages.length > 100 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) ||
         typeof m.content !== 'string' || !m.content.trim() || m.content.length > 3500000 || (m.images !== undefined && (m.role !== 'user' || !Array.isArray(m.images) || m.images.length > 3 || m.images.some(image => !validImage(image)))))) {
