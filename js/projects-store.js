@@ -37,7 +37,7 @@ export async function syncProjects() {
     } catch (e) { if (active()) { error = e.message || 'Project sync is unavailable.'; emit(); } throw e; }
   })();
   running = task;
-  try { return await task; } finally { if (running === task) running = null; }
+  let succeeded = false; try { const result = await task; succeeded = true; return result; } finally { if (running === task) { running = null; if (succeeded && active() && Object.keys(data.pending).length) schedule(); } }
 }
 const schedule = () => queueMicrotask(() => syncProjects().catch(() => {}));
 export function putProject(values) {
