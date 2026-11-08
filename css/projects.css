@@ -1,0 +1,26 @@
+.project-icon{width:20px;height:20px;flex:none;color:var(--muted)}
+.project-selectors{display:flex;flex-direction:column;gap:3px}
+.project-selectors button{display:flex;align-items:center;gap:12px;width:100%;font:inherit;font-size:15px;padding:11px 12px;color:var(--ink);border:0;border-radius:12px;background:transparent;text-align:left}
+.project-selectors button.active,.project-selectors button:hover{background:#eadfd1}
+.project-selectors button span,#conversations .project-icon+span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-view{padding-top:8px}.project-view header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.project-view h1{font:700 26px 'Bricolage Grotesque',sans-serif;letter-spacing:-.04em;margin:0;overflow-wrap:anywhere}
+.project-view button{display:flex;align-items:center;gap:14px;width:100%;border:0;background:transparent;text-align:left;padding:14px 12px;border-radius:12px;color:var(--ink)}
+.project-view button:hover{background:var(--pale)}.project-view button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-view header button{width:44px;height:44px;flex:none;justify-content:center;padding:10px}.project-view .project-new-chat{color:var(--muted);margin-top:12px}
+#project-chip{display:flex;align-items:center;justify-content:center;gap:6px;max-width:90%;margin:0 auto 6px;padding:2px 8px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px}
+#project-chip[hidden]{display:none}#project-chip .project-icon{width:14px;height:14px}#project-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-overlay{position:fixed;inset:0;z-index:100;background:#38251d00;display:flex;align-items:flex-end;justify-content:center;transition:background .28s ease}
+.project-overlay.open{background:#38251d38}.project-sheet{width:min(640px,100%);max-height:90vh;max-height:90dvh;background:var(--cream);border-radius:56px 56px 0 0 / 60px 60px 0 0;box-shadow:0 -8px 28px #4a2d2126;transform:translateY(105%);transition:transform .28s cubic-bezier(.22,.8,.25,1);display:flex;flex-direction:column;padding:0 26px max(22px,env(safe-area-inset-bottom));color:var(--ink)}
+.project-overlay.open .project-sheet{transform:translateY(0)}
+.project-sheet button{font:inherit;border:0;background:transparent;color:var(--ink);padding:10px 12px;border-radius:12px;min-height:44px}
+.project-sheet button:hover{background:var(--pale)}.project-sheet button:disabled{opacity:.5;cursor:default}
+.project-sheet .project-handle{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;min-height:36px;padding:15px 0 10px;width:100%;display:flex;justify-content:center;flex:none}
+.project-handle span{display:block;width:38px;height:4px;border-radius:4px;background:#c7b8aa}.project-sheet .project-handle:hover{background:transparent}
+.project-sheet header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}.project-sheet h2{font:700 23px 'Bricolage Grotesque',sans-serif;margin:6px 0 16px}.project-sheet h3{font-size:15px;margin:25px 0 8px}
+.project-sheet-content{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.project-sheet label{display:block;font-size:14px;margin:12px 0}.project-sheet input:not([type=file]),.project-sheet textarea{display:block;width:100%;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:8px;resize:vertical;outline:0;box-shadow:none}
+.project-sheet input:focus,.project-sheet textarea:focus{outline:0;box-shadow:none;border-color:var(--line)}
+.project-file{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.project-file>div{flex:1;min-width:0}.project-file span{display:block;overflow-wrap:anywhere}.project-file small,.project-hint{display:block;font-size:12px;color:var(--muted)}.project-hint:empty{display:none}
+.project-sheet .project-danger{color:#9e3f2f;margin-top:16px}.project-sheet .project-primary{background:var(--dark);color:var(--paper);border-radius:999px;padding:10px 18px}
+@media(prefers-reduced-motion:reduce){.project-overlay,.project-sheet{transition:none}}
