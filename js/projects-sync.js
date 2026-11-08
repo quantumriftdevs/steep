@@ -1,6 +1,6 @@
 import { authHeaders, getConfig, getSession, logout } from './auth.js';
 async function request(user, active, query, row) {
-  const headers = await authHeaders(), config = getConfig();
+  const headers = await authHeaders(), config = await getConfig();
   if (!active() || getSession()?.user?.id !== user) throw Error('Account changed.');
   const response = await fetch(config.supabaseUrl + '/rest/v1/projects?' + query, {
     method: row ? 'POST' : 'GET', signal: AbortSignal.timeout(15000),
