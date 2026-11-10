@@ -14,3 +14,26 @@
 .composer .attach-plus,.composer .attach-chip button{color:var(--composer-hint,#736e68)}
 :root[data-theme="dark"] .error,:root[data-theme="dark"] .voice-error{color:#f0ad91}
 @media(prefers-color-scheme:dark){:root[data-theme="system"] .error,:root[data-theme="system"] .voice-error{color:#f0ad91}}
+/* Contrast pairs: preserve the main page shades; replace hard-coded light panels. */
+:root[data-theme="dark"]{--auth-surface:radial-gradient(ellipse at 20% 15%,#36261b 0,transparent 60%),var(--cream);--sent-surface:#443024;--sent-ink:#f5eadb;--panel-glass:#30241de8;--panel-edge:#85604480;--button-surface:#70492e;--button-ink:#f5eadb;--danger-ink:#f0ad91;--minor-ink:#c4ad98;--field-shadow:none;--on-amber:#24180f}
+@media(prefers-color-scheme:dark){:root[data-theme="system"]{--auth-surface:radial-gradient(ellipse at 20% 15%,#36261b 0,transparent 60%),var(--cream);--sent-surface:#443024;--sent-ink:#f5eadb;--panel-glass:#30241de8;--panel-edge:#85604480;--button-surface:#70492e;--button-ink:#f5eadb;--danger-ink:#f0ad91;--minor-ink:#c4ad98;--field-shadow:none;--on-amber:#24180f}}
+:root[data-theme] .message.user>.bubble{background:var(--sent-surface,#eceae6);color:var(--sent-ink,var(--ink))}
+:root[data-theme] .auth-view{background:var(--auth-surface,radial-gradient(ellipse at 20% 15%,#fffefa 0,transparent 60%),radial-gradient(ellipse at 85% 85%,#d9864212 0,transparent 55%),var(--cream))}
+:root[data-theme] .auth-email-pill{background:var(--paper);border-color:var(--panel-edge,#eadfd1b3);box-shadow:var(--field-shadow,inset 0 1px 0 #fff,0 8px 30px #4a2d2109)}
+:root[data-theme] .auth-view input.auth-digit,:root[data-theme] .auth-view input.auth-digit:is(:focus,:focus-visible,:active){border-color:var(--panel-edge,#d8c5b2)!important;box-shadow:var(--field-shadow,inset 0 1px 0 #fff,0 5px 16px #4a2d2107)!important;color:var(--ink)}
+:root[data-theme] .auth-continue,:root[data-theme] .auth-verify{color:var(--on-amber,var(--cream));border-color:var(--panel-edge,#ffffff55);box-shadow:var(--field-shadow,inset 0 1px 1px #ffffff55,0 5px 18px #4a2d2110)}
+:root[data-theme] .brand .brand-mark,:root[data-theme] .auth-brand .brand-mark{background:var(--button-surface,var(--dark));color:var(--button-ink,var(--cream))}
+:root[data-theme] .new-chat,:root[data-theme] .project-sheet .project-primary{background:var(--button-surface,var(--dark));color:var(--button-ink,var(--paper))}
+:root[data-theme] .new-chat:hover{background:var(--button-surface,#704531);color:var(--button-ink,var(--paper))}
+:root[data-theme] .composer #send{color:var(--button-ink,var(--cream))}
+:root[data-theme] .composer.voice-recording #send{background:var(--button-surface,#f3e2c9);color:var(--button-ink,#ae702b)}
+:root[data-theme] .topbar .chat-actions{background:var(--panel-glass,rgba(255,255,255,.55));border-color:var(--panel-edge,rgba(255,255,255,.8));box-shadow:var(--field-shadow,0 5px 20px rgba(56,37,29,.07),inset 0 1px 0 rgba(255,255,255,.6))}
+:root[data-theme] .topbar.ghost-mode .chat-actions{background:#1c1512;border-color:#1c1512}
+:root[data-theme] .topbar.ghost-mode #ghost-chat{color:#f5eadb}
+:root[data-theme] .chat-options{background:var(--panel-glass,rgba(250,247,240,.96));border-color:var(--panel-edge,rgba(255,255,255,.8));color:var(--ink)}
+:root[data-theme] .attach-chip{border-color:var(--panel-edge,#e4dcd0)}
+:root[data-theme] .response-actions button{color:var(--minor-ink,#8a7b70)}
+:root[data-theme] #auth-error,:root[data-theme] .project-sheet .project-danger,:root[data-theme] #confirm-clear{color:var(--danger-ink,#9e3f2f)}
+:root[data-theme] .context-menu .context-danger{color:var(--danger-ink,#b33e32)}
+:root[data-theme] .chat-options .delete-chat{color:var(--danger-ink,#b5473b)}
+:root[data-theme] .original-view a{color:var(--composer-text,#ac743c)}
