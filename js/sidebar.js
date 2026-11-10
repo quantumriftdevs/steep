@@ -1,16 +1,9 @@
+import { onAuthChange } from './auth.js';
+import { profileInitial } from './profile.js';
 export function setupProfile() {
   const avatar = document.getElementById('profile-avatar');
-  function update() {
-    let name = '';
-    try { name = localStorage.getItem('steep-name') || ''; } catch {}
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    avatar.textContent = words.slice(0, 2).map(word => Array.from(word)[0]).join('').toLocaleUpperCase() || 'S';
-  }
-  update();
-  document.addEventListener('submit', event => {
-    if (event.target.matches('.name-form')) queueMicrotask(update);
-  });
-  window.addEventListener('storage', event => { if (event.key === 'steep-name') update(); });
+  const update = () => { if (avatar) avatar.textContent = profileInitial(); };
+  onAuthChange(update);
 }
 export function recentLabel(button, title) {
   const ns = 'http://www.w3.org/2000/svg';
