@@ -19,7 +19,7 @@ const notice = document.createElement('p'); notice.className = 'voice-error'; no
 notice.setAttribute('role', 'alert'); form.before(notice);
 let voiceState = 'idle';
 function ready() { return input.value.length > 0 || form.dataset.attachment === 'true'; }
-function syncIcon() {
+window.addEventListener('steep:request-state', () => syncIcon()); function syncIcon() { if (form.classList.contains('request-active')) { send.type = 'button'; send.disabled = false; send.setAttribute('aria-label', 'Stop generating'); return; }
   const active = voiceState !== 'idle', hasText = ready();
   send.classList.toggle('has-text', hasText);
   send.type = active || !hasText ? 'button' : 'submit';
