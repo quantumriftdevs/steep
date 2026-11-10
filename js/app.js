@@ -1,4 +1,4 @@
-import { getSession, logout } from './auth.js'; import { modelRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
+import { getSession, logout } from './auth.js'; import { modelRequest, beginRequest, finishRequest, stopRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
 import { setupProfile, recentLabel } from './sidebar.js'; import { setupProjects } from './projects.js'; import { projectNav, enterProjectChat, leaveProjects, liveChats, projectDeleted, tagProjectChat } from './projects-context.js'; import { projectPayload } from './projects-request.js';
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
 import { setupChatActions } from './chat-actions.js';
@@ -51,7 +51,7 @@ function save() {
   if (!saveChats(chats)) showError('This browser could not save your chats. They may disappear when you leave.');
 }
 function showError(text) { error.classList.remove('error--warning'); error.textContent = text; error.hidden = !text; }
-function scrollDown() { thread.scrollTop = thread.scrollHeight; }
+let follow = true; thread.addEventListener('scroll', () => { follow = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80; }, { passive: true }); function scrollDown() { if (follow) thread.scrollTop = thread.scrollHeight; } function requestState(value) { busy = value; $('composer').classList.toggle('request-active', value); $('send').disabled = false; window.dispatchEvent(new CustomEvent('steep:request-state', { detail: value })); } $('send').addEventListener('click', e => { if (!busy) return; e.preventDefault(); e.stopImmediatePropagation(); stopRequest(); }, true);
 function renderList() {
   const list = $('conversations'); list.replaceChildren();
   if (!projects.list(list)) liveChats(chats).filter(chat => !chat.projectId && chat.messages.length > 0).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)).forEach(chat => {
@@ -70,7 +70,7 @@ function renderList() {
   actions.update(temporary || projectNav.overview ? { ...current, messages: [] } : current, busy);
 }
 function render(welcome = false) {
-  stopSpeech(); renderList(); messages.replaceChildren(); if (projects.render(messages)) { messages.append(error); scrollDown(); return; }
+  const top = thread.scrollTop, following = follow; stopSpeech(); renderList(); messages.replaceChildren(); if (projects.render(messages)) { messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top; return; }
   if (current.temporary && !current.messages.length) {
     messages.append(ghostEmpty());
   } else if (!current.messages.length) {
@@ -85,10 +85,10 @@ function render(welcome = false) {
     const body = bubble(messages, m.role, m.content, m.attachment);
     if (m.role === 'assistant') responseActions(body, m, {
       current: () => current, busy: () => busy, save, notice: showError,
-      lock: value => { busy = value; $('send').disabled = value; render(); }
+      adopt: chat => { current = chat; chats = chats.filter(c => c.id !== chat.id); chats.unshift(chat); enterProjectChat(chat); save(); }, lock: value => { requestState(value); lockAttachment(value); render(); }
     });
   });
-  messages.append(error); scrollDown();
+  messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top;
 }
 $('new-chat').onclick = () => {
   if (busy && !current.temporary) return;
@@ -96,9 +96,7 @@ $('new-chat').onclick = () => {
   clearAttachment(); showError(''); menu(false); render(true); input.focus();
 };
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; });
-input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
-});
+
 $('composer').addEventListener('submit', async e => {
   e.preventDefault(); const text = input.value.trim(); if ((!text && !hasAttachment()) || busy) return; if (!requireAuth(() => { leaveProjects(); current = newChat(); chats.unshift(current); enterProjectChat(current); input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); $('composer').requestSubmit(); })) return;
   projects.beforeSend(); if (projectDeleted(current)) return; const owner = getSession()?.user?.id; const active = current; busy = true; lockAttachment(true); $('send').disabled = true; input.disabled = true; showError(''); renderList(); let prepared; try { prepared = await prepareAttachment(text); } catch (err) { if (current === active) showError(err.message || 'Could not prepare attachment.'); busy = false; lockAttachment(false); $('send').disabled = false; input.disabled = false; render(); return; } input.disabled = false; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) { busy = false; lockAttachment(false); $('send').disabled = false; render(); return; }
@@ -106,22 +104,22 @@ $('composer').addEventListener('submit', async e => {
   const userText = text || 'Please help with this file.'; current.messages.push({ role: 'user', content: userText, ...(prepared.attachment ? { attachment: prepared.attachment } : {}) }); clearAttachment();
   if (first) current.title = userText.slice(0, 42); save();
   input.value = ''; input.style.height = 'auto'; render();
-  const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.innerHTML = '<span class="model-dots" role="status" aria-label="Generating reply"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></span>';  scrollDown();
+  const controller = beginRequest(); requestState(true); const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.innerHTML = '<span class="model-dots" role="status" aria-label="Generating reply"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></span>';  scrollDown();
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
-    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; });
+    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
-    const data = await response.json(); if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
-    if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
+    const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
+    if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-    typing.classList.remove('typing'); await animate(typing, data.reply, scrollDown);
+    typing.classList.remove('typing'); await animate(typing, data.reply, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
-    current.messages.push({ role: 'assistant', content: data.reply }); save();
+    current.messages.push({ role: 'assistant', content: data.reply, ...(data.research ? { research: data.research } : {}) }); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     // Keep the sent message locally even when the model/network is unavailable.
-    input.value = ''; showError(err.message || 'Could not connect. Try again.'); save();
-  } finally { busy = false; lockAttachment(false); $('send').disabled = false; render(); }
+    if (err.name !== 'AbortError' && !controller.signal.aborted) showError(err.message || 'Could not connect. Try again.'); else showError(''); input.value = ''; save();
+  } finally { finishRequest(controller); requestState(false); lockAttachment(false); render(); }
 });
 onChatsChange(reset => { const active = current; chats = liveChats(loadChats()); if (reset) { projects.reset(); if (!pendingGuest()) discardTemporary(); current = chats[0] || newChat(); enterProjectChat(current); input.value = ''; showError(''); menu(false); } else if (busy && !projectDeleted(active)) { if (!active.temporary) { chats = chats.filter(c => c.id !== active.id); chats.unshift(active); } return; } else { current = !projectDeleted(active) && active.temporary ? active : chats.find(c => c.id === active.id) || chats[0] || newChat(); if (projectDeleted(active)) { leaveProjects(); clearAttachment(); input.value = ''; } } if (!chats.length && !current.temporary) chats = [current]; render(); }); enterProjectChat(current); setupProfile(); render(true);
 window.addEventListener('steep:guest-image', event => {
