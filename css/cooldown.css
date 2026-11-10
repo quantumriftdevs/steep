@@ -1,3 +1,11 @@
 /* Waiting is not a failure; only cooldown elements use this modifier. */
 .error.error--warning,.sg-status.error--warning{color:var(--dark);background:var(--pale);border:1px solid var(--line);padding:7px 12px;border-radius:12px;animation:none;transition:none;}
 .sg-card:has(.error--warning) .sg-dots:before,.sg-card:has(.error--warning) .sg-dots:after{animation:none;}
+/* Text-send queue handoff: static countdown, then generating dot wave. */
+.typing:has(.model-dots)::after{display:none;}
+.typing .model-dots{display:inline-flex;align-items:center;gap:4px;min-height:1em;}
+.typing .model-dots i{width:5px;height:5px;border-radius:50%;background:var(--amber);animation:model-queue-wave 1s ease-in-out infinite;}
+.typing .model-dots i:nth-child(2){animation-delay:.15s;}
+.typing .model-dots i:nth-child(3){animation-delay:.3s;}
+@keyframes model-queue-wave{0%,60%,100%{transform:translateY(0);opacity:.45;}30%{transform:translateY(-3px);opacity:1;}}
+@media(prefers-reduced-motion:reduce){.typing .model-dots i{animation:none;}}
