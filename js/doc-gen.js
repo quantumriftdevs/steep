@@ -36,7 +36,7 @@ export async function documentReply(data, chat, signal, notice = () => {}) {
       const pdf = await library('html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js','html2pdf'); check(signal);
       blob = await pdf().set({ margin:12, filename:name+'.pdf', image:{type:'jpeg',quality:0.92}, html2canvas:{scale:1.4}, jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}, pagebreak:{mode:['css','legacy']} }).from(node).outputPdf('blob');
     } else if(d.format==='docx') {
-      const docx = await library('docx@9.5.1/dist/index.umd.cjs','docx'); await library('file-saver@2.0.5/dist/FileSaver.min.js','saveAs'); check(signal);
+      const docx = await library('docx@8.5.0/build/index.umd.js','docx'); await library('file-saver@2.0.5/dist/FileSaver.min.js','saveAs'); check(signal);
       const children = [...node.children].map(p => new docx.Paragraph({ text:p.textContent, ...( /^H[1-6]$/.test(p.tagName) ? {heading:docx.HeadingLevel['HEADING_'+p.tagName[1]]} : {}), spacing:{after:180} }));
       blob = await docx.Packer.toBlob(new docx.Document({sections:[{children}]}));
     } else {
