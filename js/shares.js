@@ -1,3 +1,4 @@
+import { validDocument } from './doc-view.js';
 import { authHeaders, getConfig, getSession } from './auth.js';
 import { requireAuth } from './guest.js';
 import { cachedImageSnapshots } from './image-gen.js';
@@ -20,7 +21,7 @@ export async function activeShare(chat) {
 async function snapshotOf(chat) {
   const title = String(chat.customTitle || chat.title || 'Steep chat').slice(0,200);
   const messages = chat.messages.filter(m => m && !m.steep_meta && ['user','assistant'].includes(m.role)).map(m => {
-    const item = { role: m.role, content: String(m.content || '') };
+    const item = { role: m.role, content: String(m.content || '') }; if (validDocument(m.document)) { const d = m.document; item.document = { generated: true, kind: 'file', format: d.format, name: d.name, size: d.size, original: d.original }; }
     if (m.attachment) item.attachment = (Array.isArray(m.attachment) ? m.attachment : [m.attachment]).filter(Boolean).map(source => {
       const a = {};
       for (const k of ['name','kind','text','note','thumb','data','jpeg','dataUrl','original']) if (typeof source[k] === 'string') a[k] = source[k];
@@ -33,7 +34,7 @@ async function snapshotOf(chat) {
   const check = () => { if (new TextEncoder().encode(JSON.stringify(snapshot, null, 1)).length > 1500000) throw new Error('This chat is too large to share'); };
   // Whitelist strips internal metadata and temporary original-file handles.
   check();
-  for (const m of messages) if (m.role === 'assistant') {
+  for (const m of messages) if (m.role === 'assistant' && !m.images?.length) {
     const cached = await cachedImageSnapshots(m.content);
     if (cached.length) m.images = [...(m.images || []), ...cached];
     check();
