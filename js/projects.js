@@ -25,10 +25,10 @@ export function setupProjects(api) {
       host.append(status, add);
     });
   }
-  function settings(id) {
+  function rename(id) { if(!requireAuth(()=>rename(id)))return; const p=getProject(id);if(!p)return; projectSheet('Rename project',(host,close)=>{const name=field(host,'Name',p.name,80);name.style.fontSize='16px'; const status=document.createElement('p'),save=document.createElement('button');status.setAttribute('role','status');save.type='button';save.className='project-primary';save.textContent='Save';save.onclick=()=>{try{const latest=getProject(id);if(!latest)throw Error('Project is unavailable.');putProject({...latest,name:name.value});close(true);}catch(e){status.hidden=false;status.textContent=e.message;}};host.append(status,save);name.focus();}); } function rowMenu(id) { const p=getProject(id);if(!p)return []; const run=fn=>()=>{if(api.busy())return;if(!requireAuth(()=>run(fn)()))return;try{fn();}catch(e){api.notice(e.message);}};return [{label:p.pinned?'Unpin':'Pin',icon:'pin',run:run(()=>{const latest=getProject(id);if(latest)putProject({...latest,pinned:!latest.pinned});})},{label:'Rename',icon:'rename',run:run(()=>rename(id))},{label:'Delete',icon:'delete',danger:true,run:run(()=>settings(id,true))}]; } function settings(id, deleting = false) { if(!requireAuth(()=>settings(id,deleting)))return;
     let draft = getProject(id), instructions, files, status, confirming = false;
     if (!draft) return;
-    const tell = text => { status.textContent = text; };
+    const tell = text => { status.hidden=false; status.textContent = text; };
     function save() {
       if (!getProject(id)) return true;
       if (files?.busy) { tell('Please wait for file extraction to finish.'); return false; }
@@ -53,7 +53,7 @@ export function setupProjects(api) {
           confirm.onclick = () => { try { deleteProject(id); close(true); } catch (e) { warning.textContent = e.message; } };
           host.append(warning, cancel, confirm); cancel.focus();
         };
-        host.append(status, remove);
+        host.append(status, remove); if(deleting){deleting=false;remove.click();}
       }
       build();
     }, save);
@@ -66,7 +66,7 @@ export function setupProjects(api) {
   return {
     reset() { leaveProjects(); closeProjectSheet(); },
     newAction() { if (nav.tab !== 'projects') return false; create(); return true; },
-    list(list) { update(nav.tab, api.busy()); if (nav.tab !== 'projects') return false; drawProjects(list, projectRows(), nav.id, open, api.busy()); return true; },
+    list(list) { update(nav.tab, api.busy()); if (nav.tab !== 'projects') return false; drawProjects(list, projectRows(), nav.id, open, api.busy(), rowMenu); return true; },
     render(host) {
       const p = getProject(nav.overview ? nav.id : api.current().projectId);
       projectChip(p, () => open(p.id), api.busy());
