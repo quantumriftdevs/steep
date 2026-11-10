@@ -38,3 +38,6 @@
 :root[data-theme] .chat-options .delete-chat{color:var(--danger-ink,#b5473b)}
 :root[data-theme] .original-view a{color:var(--composer-text,#ac743c)}
 :root[data-theme] .topbar #open-menu{background:var(--panel-glass,rgba(255,255,255,.55))}
+:root[data-theme] .topbar :is(#open-menu,.chat-pill>button){width:42px;height:42px;border-radius:50%;background:var(--panel-glass,rgba(255,255,255,.55));border:1px solid var(--composer-line,#ece8e1);box-shadow:var(--field-shadow,0 5px 20px rgba(56,37,29,.07));-webkit-backdrop-filter:blur(16px) saturate(1.15);backdrop-filter:blur(16px) saturate(1.15);color:#f5eadb}
+:root[data-theme] .topbar .chat-actions.has-messages{background:transparent;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+:root[data-theme] .topbar .chat-pill{gap:4px}
