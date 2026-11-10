@@ -1,4 +1,4 @@
-import { projectRow, projectIcon } from './projects-icons.js';
+import { bindMenu } from './context-menu.js'; import { pinMarker } from './sidebar.js'; import { projectRow, projectIcon } from './projects-icons.js';
 export function projectSelectors(choose) {
   const nav = document.createElement('nav'); nav.className = 'project-selectors'; nav.setAttribute('aria-label', 'Conversation views');
   const chats = projectRow('Chats', 'chat', () => choose('chats')), projects = projectRow('Projects', 'folder', () => choose('projects'));
@@ -11,10 +11,10 @@ export function projectSelectors(choose) {
     document.querySelector('#new-chat span').textContent = tab === 'projects' ? 'New project' : 'New chat';
   };
 }
-export function drawProjects(list, rows, active, open, busy) {
-  for (const p of rows.filter(p => !p.deleted_at).sort((a, b) => b.updated_at.localeCompare(a.updated_at))) {
+export function drawProjects(list, rows, active, open, busy, menu) {
+  for (const p of rows.filter(p => !p.deleted_at).sort((a, b) => Number(!!b.pinned)-Number(!!a.pinned)||b.updated_at.localeCompare(a.updated_at))) {
     const button = projectRow(p.name, 'folder', () => open(p.id)); button.disabled = busy;
-    button.classList.toggle('active', p.id === active); list.append(button);
+    button.classList.toggle('active', p.id === active); pinMarker(button,p.pinned); if(menu)bindMenu(button,()=>menu(p.id)); list.append(button);
   }
   if (!list.children.length) { const p = document.createElement('p'); p.className = 'project-hint'; p.textContent = 'No projects yet.'; list.append(p); }
 }
