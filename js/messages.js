@@ -15,7 +15,7 @@ export function bubble(messages, role, content, attachment) {
   row.append(body); messages.append(row); return body;
 }
 
-export async function animate(body, reply, scrollDown) {
+export async function animate(body, reply, scrollDown, signal) {
   const parts = imageParts(reply);
   if (parts.some(part => part.prompt)) {
     body.replaceChildren(); body.classList.add('streaming');
@@ -28,7 +28,7 @@ export async function animate(body, reply, scrollDown) {
       if (part.prompt) continue;
       let text = '';
       for (const word of part.text.match(/\S+\s*|\s+/g) || [part.text]) {
-        text += word; part.node.replaceChildren(renderMarkdown(text)); scrollDown();
+        if (signal?.aborted) { body.classList.remove('streaming'); return; } text += word; part.node.replaceChildren(renderMarkdown(text)); scrollDown();
         await new Promise(resolve => setTimeout(resolve, 24));
       }
     }
@@ -37,7 +37,7 @@ export async function animate(body, reply, scrollDown) {
   const words = reply.match(/\S+\s*|\s+/g) || [reply];
   let text = ''; body.classList.add('streaming');
   for (const word of words) {
-    text += word; body.replaceChildren(renderMarkdown(text)); scrollDown();
+    if (signal?.aborted) { body.classList.remove('streaming'); return; } text += word; body.replaceChildren(renderMarkdown(text)); scrollDown();
     await new Promise(resolve => setTimeout(resolve, 24));
   } body.classList.remove('streaming');
 }
