@@ -78,6 +78,11 @@ codeForm.addEventListener('submit', async event => {
 $('auth-resend').onclick = () => deliver($('auth-resend'), true);
 $('auth-different').onclick = () => { if (!busy) { codeForm.reset(); $('auth-status').textContent = ''; screen(false); } };
 onAuthChange(session => {
-  shell.hidden = !session; shell.inert = !session; view.hidden = !!session;
-  if (!session) { codeForm.reset(); $('auth-status').textContent = ''; screen(false); }
+  shell.hidden = false; shell.inert = false; view.hidden = true;
+  if (!session) { codeForm.reset(); $('auth-status').textContent = ''; }
+});
+
+window.addEventListener('steep:auth-required', () => {
+    shell.hidden = true; shell.inert = true; view.hidden = false;
+    codeForm.reset(); $('auth-status').textContent = ''; screen(false);
 });
