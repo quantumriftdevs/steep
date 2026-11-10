@@ -1,10 +1,10 @@
 import './press.js'; import { projectRetry } from './projects-request.js'; import { projectDeleted } from './projects-context.js'; import { getSession } from './auth.js';
-import { downloadImage } from './image-gen.js';
+import { downloadImage } from './image-gen.js'; import { requireAuth } from './guest.js'; import { modelRequest, beginRequest, finishRequest } from './model-request.js';
 const css = document.createElement('link');
 css.rel = 'stylesheet'; css.href = '/css/responses.css'; document.head.append(css);
 let speaking;
 export function stopSpeech() {
-  if (speaking) { window.speechSynthesis?.cancel(); speaking.setAttribute('aria-pressed', 'false'); speaking = null; }
+  const button = speaking; speaking = null; if (button) { button.setAttribute('aria-pressed', 'false'); window.speechSynthesis?.cancel(); }
 }
 window.addEventListener('pagehide', stopSpeech);
 export function responseActions(body, message, api) {
@@ -45,23 +45,12 @@ export function responseActions(body, message, api) {
   down = button('Dislike response', '<path d="M8 3H3v11h5M8 3h10l3 11h-8l1 6-3 2-3-8V3Z"/>', () => vote('down'));
   up.setAttribute('aria-pressed', String(message.feedback === 'up'));
   down.setAttribute('aria-pressed', String(message.feedback === 'down'));
-  button('Retry response', '<path d="M20 7v6h-6M4 17v-6h6M6 6a8 8 0 0 1 14 7M18 18a8 8 0 0 1-14-7"/>', async () => {
-    if (api.busy()) return;
+  button('Retry response', '<path d="M20 7v6h-6M4 17v-6h6M6 6a8 8 0 0 1 14 7M18 18a8 8 0 0 1-14-7"/>', async function retry() { if (api.busy()) return;
     const chat = api.current(), index = chat.messages.indexOf(message);
     let end = index - 1;
     while (end >= 0 && chat.messages[end].role !== 'user') end--;
     if (end < 0) { tell('No message to retry yet.'); return; }
-    const history = chat.messages.slice(0, end + 1).slice(-99).map(({ role, content }) => ({ role, content }));
-    api.notice(''); api.lock(true);
-    try {
-      const prepared = chat.projectId ? await projectRetry(chat, chat.messages.slice(0, end + 1)) : null; if (api.current() !== chat || projectDeleted(chat) || (prepared && getSession()?.user?.id !== prepared.owner)) return; if (prepared?.notice) api.notice(prepared.notice); const response = await fetch('/api/chat', { method: 'POST', headers: prepared?.headers || { 'Content-Type': 'application/json' }, body: prepared?.body || JSON.stringify({ messages: history }) });
-      const data = await response.json();
-      if (api.current() !== chat || projectDeleted(chat) || (prepared && getSession()?.user?.id !== prepared.owner)) return;
-      if (!response.ok) throw new Error(data.error || 'Could not regenerate. Try again.');
-      if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-      message.content = data.reply; message.feedback = null; api.save();
-    } catch (e) { if (api.current() === chat) api.notice(e.message || 'Could not regenerate. Try again.'); }
-    finally { api.lock(false); }
+    if (!requireAuth(() => { api.adopt(chat); retry(); })) return; const controller = beginRequest(); const active = () => !controller.signal.aborted && api.current() === chat && !projectDeleted(chat); api.notice(''); api.lock(true); try { const prepared = await projectRetry(chat, chat.messages.slice(0, end + 1)); if (!active() || getSession()?.user?.id !== prepared.owner) return; if (prepared.notice) api.notice(prepared.notice); const response = await modelRequest(prepared.body, document.getElementById('error'), active, () => {}, controller.signal); const data = await response.json(); if (!response.ok) throw Error(data.error || 'Could not regenerate. Try again.'); if (!active() || getSession()?.user?.id !== prepared.owner) return; if (typeof data.reply !== 'string' || !data.reply.trim()) throw Error('Steep returned an empty reply. Try again.'); message.content = data.reply; message.feedback = null; message.research = data.research; api.save(); } catch (e) { if (e.name !== 'AbortError' && active()) api.notice(e.message || 'Could not regenerate. Try again.'); } finally { finishRequest(controller); api.lock(false); }
   });
   const images = [...body.querySelectorAll('.sg-card')];
   images.forEach((card, index) => button(images.length > 1 ? 'Download image ' + (index + 1) : 'Download image', '<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>', () => downloadImage(card, tell)));
