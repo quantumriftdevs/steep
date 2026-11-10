@@ -1,3 +1,4 @@
+import { documentCard } from './doc-view.js';
 import { previewOriginal } from './attach-view.js';
 import { renderMarkdown } from './markdown.js';
 const host = document.getElementById('shared-messages'), status = document.getElementById('share-status');
@@ -28,7 +29,7 @@ async function load() {
       if (!m || !['user','assistant'].includes(m.role)) continue;
       const line = document.createElement('div'); line.className = 'message ' + m.role;
       if (m.role === 'assistant') { const avatar = document.createElement('span'); avatar.className = 'avatar'; avatar.textContent = 's'; line.append(avatar); }
-      const body = document.createElement('div'); body.className = 'bubble'; attachment(m.attachment, body); body.append(renderMarkdown(String(m.content || '')));
+      const body = document.createElement('div'); body.className = 'bubble'; attachment(m.attachment, body); body.append(renderMarkdown(String(m.content || ''))); if (m.document) body.append(documentCard(m.document));
       for (const src of Array.isArray(m.images) ? m.images : []) if (imageURL(src)) { const img = document.createElement('img'); img.src = src; img.alt = 'Shared generated image'; img.className = 'attach-preview'; img.referrerPolicy = 'no-referrer'; body.append(img); }
       line.append(body); host.append(line);
     }
