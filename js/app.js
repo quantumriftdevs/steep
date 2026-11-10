@@ -1,7 +1,7 @@
 import { getSession, logout } from './auth.js'; import { modelRequest, beginRequest, finishRequest, stopRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
-import { setupProfile, recentLabel } from './sidebar.js'; import { setupProjects } from './projects.js'; import { projectNav, enterProjectChat, leaveProjects, liveChats, projectDeleted, tagProjectChat } from './projects-context.js'; import { projectPayload } from './projects-request.js';
+import { setupProfile, recentLabel, pinMarker } from './sidebar.js'; import { setupProjects } from './projects.js'; import { projectNav, enterProjectChat, leaveProjects, liveChats, projectDeleted, tagProjectChat } from './projects-context.js'; import { projectPayload } from './projects-request.js';
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
-import { setupChatActions } from './chat-actions.js';
+import { setupChatActions } from './chat-actions.js'; import { bindMenu } from './context-menu.js'; import { shareChat, activeShare, stopSharing } from './shares.js';
 import { responseActions, stopSpeech } from './actions.js';
 import { bubble, animate } from './messages.js'; import { modelPayload } from './attach-payload.js';
 import { temporaryChat, ghostEmpty, setupGhost, updateGhost } from './ghost.js';
@@ -52,7 +52,7 @@ function save() {
 }
 function showError(text) { error.classList.remove('error--warning'); error.textContent = text; error.hidden = !text; }
 let follow = true; thread.addEventListener('scroll', () => { follow = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80; }, { passive: true }); function scrollDown() { if (follow) thread.scrollTop = thread.scrollHeight; } function requestState(value) { busy = value; $('composer').classList.toggle('request-active', value); $('send').disabled = false; window.dispatchEvent(new CustomEvent('steep:request-state', { detail: value })); } $('send').addEventListener('click', e => { if (!busy) return; e.preventDefault(); e.stopImmediatePropagation(); stopRequest(); }, true);
-function renderList() {
+async function chatMenu(chat) { const run = fn => () => { if (!busy && chats.includes(chat)) fn(); }; const items = [{ label: chat.pinned ? 'Unpin' : 'Pin', icon: 'pin', run: run(() => { chat.pinned = !chat.pinned; if (!saveChats(chats)) showError('Could not save this pin.'); renderList(); }) }, { label: 'Share', icon: 'share', run: run(() => shareChat(chat, showError)) }, { label: 'Rename', icon: 'rename', run: run(() => { discardTemporary(); current = chat; enterProjectChat(chat); render(); document.querySelector('.chat-pill [aria-label="Chat options"]')?.click(); document.querySelector('.chat-options [aria-label="Rename"]')?.click(); }) }, { label: 'Delete', icon: 'delete', danger: true, run: run(() => { if (!confirm('Delete this chat? This cannot be undone.')) return; chats = chats.filter(c => c.id !== chat.id); if (current.id === chat.id) { current = newChat(); chats.unshift(current); enterProjectChat(current); } if (!saveChats(chats)) showError('Could not save this deletion.'); render(); }) }]; if (getSession()) { try { if (await activeShare(chat)) items.splice(2, 0, { label: 'Stop sharing', icon: 'stop', run: run(() => stopSharing(chat, showError)) }); } catch { showError('Sharing status is unavailable. Try Share again.'); } } return items; } function renderList() {
   const list = $('conversations'); list.replaceChildren();
   if (!projects.list(list)) liveChats(chats).filter(chat => !chat.projectId && chat.messages.length > 0).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)).forEach(chat => {
     const button = document.createElement('button'); button.type = 'button';
@@ -61,7 +61,7 @@ function renderList() {
     recentLabel(button, title.length > 42 ? title.slice(0, 42) + '…' : title);
     button.className = chat.id === current.id ? 'active' : ''; button.disabled = busy;
     button.onclick = () => { discardTemporary(); current = chat; enterProjectChat(chat); showError(''); menu(false); render(); };
-    list.append(button);
+    pinMarker(button, chat.pinned); bindMenu(button, () => chatMenu(chat)); list.append(button);
   });
   $('new-chat').disabled = busy && !current.temporary; updateGhost(ghost, current, busy);
   ghost.disabled = busy && !current.temporary;
