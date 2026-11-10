@@ -1,0 +1,8 @@
+/* Scoped generated-file cards; no shell, drawer, header or sidebar rules. */
+.document-card{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0;padding:16px;border:1px solid #ded4c4;border-radius:16px;background:#fffaf0;color:#29251f;max-width:100%;box-sizing:border-box;font:inherit}
+.document-card .document-format{display:grid;place-items:center;min-width:44px;min-height:48px;padding:4px;background:#eee3d1;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.04em}
+.document-card>div{flex:1 1 150px;min-width:0}
+.document-card strong{display:block;overflow-wrap:anywhere;font-size:15px}
+.document-card>div>span{display:block;font-size:12px;color:#766b5d;margin-top:4px}
+.document-card button,.document-card a{font:inherit;font-size:14px;color:#55432c;background:transparent;border:0;padding:8px 4px;text-decoration:underline;cursor:pointer;box-shadow:none;outline:none}
+.document-card button:hover,.document-card a:hover{text-decoration-thickness:2px}
