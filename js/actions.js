@@ -7,11 +7,11 @@ export function stopSpeech() {
   const button = speaking; speaking = null; if (button) { button.setAttribute('aria-pressed', 'false'); window.speechSynthesis?.cancel(); }
 }
 window.addEventListener('pagehide', stopSpeech);
-export function responseActions(body, message, api) {
+export function responseActions(body, message, api) { if (Array.isArray(message.research?.sources)) { const sources = document.createElement('div'); sources.className = 'research-sources'; sources.textContent = 'Researched on the web'; message.research.sources.slice(0,3).forEach((s,i) => { try { const u = new URL(s.url); if (!['https:','http:'].includes(u.protocol)) return; const a = document.createElement('a'); a.href = u.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '[' + (i+1) + '] ' + String(s.title || u.hostname).slice(0,160); sources.append(a); } catch {} }); body.append(sources); }
   const row = document.createElement('div'); row.className = 'response-actions';
   row.setAttribute('aria-label', 'Response actions');
   const note = document.createElement('span'); note.className = 'action-note'; note.setAttribute('role', 'status');
-  function tell(text) { note.textContent = text; setTimeout(() => { note.textContent = ''; }, 2400); }
+  function tell(text) { note.hidden = false; note.setAttribute('role', 'alert'); note.textContent = text; }
   function button(label, path, run) {
     const b = document.createElement('button'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
