@@ -1,0 +1,8 @@
+/* Warm app palette only; landing does not load this file. */
+:root[data-theme="dark"]{color-scheme:dark;--ink:#f5eadb;--muted:#c4ad98;--cream:#211913;--paper:#2b2019;--amber:#d98642;--dark:#eed8bd;--line:#544033;--pale:#443024;--assistant:#34271f;--control:#70492e;--glass:#30241dcc}
+@media(prefers-color-scheme:dark){:root[data-theme="system"]{color-scheme:dark;--ink:#f5eadb;--muted:#c4ad98;--cream:#211913;--paper:#2b2019;--amber:#d98642;--dark:#eed8bd;--line:#544033;--pale:#443024;--assistant:#34271f;--control:#70492e;--glass:#30241dcc}}
+:root[data-theme="light"]{color-scheme:light}
+.assistant .bubble{background:var(--assistant,#f2eae0)}
+.composer #send{background:var(--control,var(--dark))}
+:root[data-theme="dark"] .error,:root[data-theme="dark"] .voice-error{color:#f0ad91}
+@media(prefers-color-scheme:dark){:root[data-theme="system"] .error,:root[data-theme="system"] .voice-error{color:#f0ad91}}
