@@ -1,8 +1,8 @@
 /* App-only overrides. Landing never loads this stylesheet. */
 :where(input:not([type=checkbox]):not([type=radio]),textarea,select){font-size:16px!important}
 *:focus,*:focus-visible{outline:none!important;box-shadow:none!important}
-:is(input,textarea,select):focus{border-color:var(--line)!important}
-.composer:focus-within{border-color:var(--line)!important}
+:is(input,textarea,select),:is(input,textarea,select):focus{border-color:var(--line)!important}
+.composer,.composer:focus-within{border-color:var(--composer-line,#ece8e1)!important}
 .composer.request-active #send .send-wave,.composer.request-active #send .send-arrow{opacity:0;scale:.75}
 .composer.request-active #send .send-stop{opacity:1;scale:1;fill:currentColor;stroke:none}
 .row-pin{width:13px;height:13px;flex:none;margin-left:auto;fill:none;stroke:currentColor;stroke-width:1.7}
