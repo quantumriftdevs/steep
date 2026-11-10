@@ -1,7 +1,7 @@
-// One deadline-based waiting indicator for model and image limits.
+// One deadline-based queue indicator for model and image limits.
 const css = document.createElement('link');
 css.rel = 'stylesheet'; css.href = '/css/cooldown.css'; document.head.append(css);
-export function cooldown(node, label, deadline, active = () => true) {
+export function cooldown(node, _label, deadline, active = () => true) {
   return new Promise(resolve => {
     let timer;
     node.classList.add('error--warning'); node.hidden = false;
@@ -14,7 +14,8 @@ export function cooldown(node, label, deadline, active = () => true) {
       if (!active()) return finish(false);
       const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       if (!seconds) return finish(true);
-      node.textContent = label + ' ' + seconds + 's';
+      const timerText = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+      node.textContent = 'Added to queue ' + timerText;
       timer = setTimeout(tick, Math.min(1000, Math.max(1, deadline - Date.now())));
     }
     tick();
