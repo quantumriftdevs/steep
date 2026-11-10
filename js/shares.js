@@ -1,6 +1,8 @@
 import { authHeaders, getConfig, getSession } from './auth.js';
 import { requireAuth } from './guest.js';
+import { cachedImageSnapshots } from './image-gen.js';
 const base = 'https://steep-app-three.vercel.app/s/';
+const pending = new Set();
 async function request(query, method = 'GET', body) {
   const owner = getSession()?.user?.id;
   if (!owner) throw new Error('Please sign in to share a chat.');
@@ -15,16 +17,27 @@ export async function activeShare(chat) {
   const rows = await request('select=id,token&revoked_at=is.null&snapshot->>chatId=eq.' + encodeURIComponent(chat.id) + '&order=created_at.desc&limit=1');
   return rows[0] || null;
 }
-function snapshotOf(chat) {
+async function snapshotOf(chat) {
   const title = String(chat.customTitle || chat.title || 'Steep chat').slice(0,200);
   const messages = chat.messages.filter(m => m && !m.steep_meta && ['user','assistant'].includes(m.role)).map(m => {
     const item = { role: m.role, content: String(m.content || '') };
-    if (m.attachment) { const a = {}; for (const k of ['name','kind','text','note','jpeg','dataUrl','original']) if (typeof m.attachment[k] === 'string') a[k] = m.attachment[k]; item.attachment = a; }
+    if (m.attachment) item.attachment = (Array.isArray(m.attachment) ? m.attachment : [m.attachment]).filter(Boolean).map(source => {
+      const a = {};
+      for (const k of ['name','kind','text','note','thumb','data','jpeg','dataUrl','original']) if (typeof source[k] === 'string') a[k] = source[k];
+      return a;
+    });
+    if (Array.isArray(m.images)) item.images = m.images.filter(src => typeof src === 'string' && /^(https:\/\/|data:image\/)/i.test(src));
     return item;
   });
   const snapshot = { chatId: chat.id, title, messages };
-  // Pretty JSON overestimates jsonb's spaces, keeping inserts below its byte cap.
-  if (new TextEncoder().encode(JSON.stringify(snapshot, null, 1)).length > 1500000) throw new Error('This chat is too large to share');
+  const check = () => { if (new TextEncoder().encode(JSON.stringify(snapshot, null, 1)).length > 1500000) throw new Error('This chat is too large to share'); };
+  // Whitelist strips internal metadata and temporary original-file handles.
+  check();
+  for (const m of messages) if (m.role === 'assistant') {
+    const cached = await cachedImageSnapshots(m.content);
+    if (cached.length) m.images = [...(m.images || []), ...cached];
+    check();
+  }
   return snapshot;
 }
 function showLink(token, title, notice) {
@@ -36,16 +49,28 @@ function showLink(token, title, notice) {
   const close = document.createElement('button'); close.textContent = 'Done'; close.onclick = () => dialog.close();
   dialog.append(heading,note,input,copy);
   if (navigator.share) { const share = document.createElement('button'); share.textContent = 'Share'; share.onclick = async () => { try { await navigator.share({ title, url: input.value }); } catch(e) { if(e.name !== 'AbortError') notice('Could not open sharing. Copy the link instead.'); } }; dialog.append(share); }
-  dialog.append(close); dialog.onclose = () => dialog.remove(); dialog.onclick = e => { if(e.target === dialog) { const r=dialog.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) dialog.close(); } }; document.body.append(dialog); dialog.showModal();
+  dialog.append(close); dialog.onclose = () => dialog.remove();
+  dialog.onclick = e => { if(e.target === dialog) { const r=dialog.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) dialog.close(); } };
+  document.body.append(dialog); dialog.showModal();
 }
 export async function shareChat(chat, notice) {
   if (!requireAuth(() => shareChat(chat,notice))) return;
-  try { const snapshot = snapshotOf(chat); let row = await activeShare(chat);
-    if (!row) { const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2,'0')).join(''); [row] = await request('', 'POST', { user_id: getSession().user.id, token, title: snapshot.title, snapshot }); }
+  const owner = getSession().user.id, key = owner + ':' + chat.id;
+  if (pending.has(key)) return;
+  pending.add(key);
+  try {
+    const snapshot = await snapshotOf(chat);
+    if (getSession()?.user?.id !== owner) throw Error('Account changed. Please try again.');
+    let row = await activeShare(chat);
+    if (!row) {
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2,'0')).join('');
+      [row] = await request('', 'POST', { user_id: owner, token, title: snapshot.title, snapshot });
+    }
     showLink(row.token, snapshot.title, notice);
-  } catch(e) { notice(e.message); }
+  } catch(e) { notice(e.message); } finally { pending.delete(key); }
 }
 export async function stopSharing(chat, notice) {
   if (!requireAuth(() => stopSharing(chat,notice))) return;
-  try { await request('revoked_at=is.null&snapshot->>chatId=eq.' + encodeURIComponent(chat.id), 'PATCH', { revoked_at: new Date().toISOString() }); notice('Sharing stopped. Existing links no longer open this chat.'); } catch(e) { notice(e.message); }
+  try { await request('revoked_at=is.null&snapshot->>chatId=eq.' + encodeURIComponent(chat.id), 'PATCH', { revoked_at: new Date().toISOString() }); notice('Sharing stopped. Existing links no longer open this chat.'); }
+  catch(e) { notice(e.message); }
 }
