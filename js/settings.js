@@ -1,4 +1,4 @@
-import './press.js';
+import './press.js'; import { profileName, saveProfileName } from './profile.js';
 import { checkConnection } from './status.js';
 import { setupProfile } from './sidebar.js';
 import { onAuthChange, logout, maskEmail } from './auth.js';
@@ -7,11 +7,11 @@ const $ = id => document.getElementById(id);
 const feedback = text => { $('settings-feedback').textContent = text; };
 onAuthChange(session => {
   if (!session) { location.replace('/app/'); return; }
-  $('account-email').textContent = maskEmail(session.user.email);
+  $('account-email').textContent = maskEmail(session.user.email); showName();
 });
 $('auth-logout').addEventListener('click', logout);
 function readName() {
-  try { return localStorage.getItem('steep-name') || ''; } catch { return ''; }
+  return profileName();
 }
 function showName() {
   const name = readName();
@@ -35,7 +35,7 @@ $('profile-form').addEventListener('submit', event => {
   const name = $('settings-name').value.trim().slice(0, 60);
   if (!name) { feedback('Pop in a name first.'); return; }
   try {
-    localStorage.setItem('steep-name', name);
+    saveProfileName(name);
     showName(); closePanel('profile-panel'); feedback('Got it. Steep will call you ' + name + '.');
   } catch { feedback('This browser could not save your name. Please try again.'); }
 });
