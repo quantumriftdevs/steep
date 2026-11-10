@@ -1,4 +1,4 @@
-import { authHeaders, getSession, logout } from './auth.js';
+import { getSession, logout } from './auth.js'; import { modelRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
 import { setupProfile, recentLabel } from './sidebar.js'; import { setupProjects } from './projects.js'; import { projectNav, enterProjectChat, leaveProjects, liveChats, projectDeleted, tagProjectChat } from './projects-context.js'; import { projectPayload } from './projects-request.js';
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
 import { setupChatActions } from './chat-actions.js';
@@ -50,7 +50,7 @@ function save() {
   if (current.temporary) return; chats = liveChats(chats); if (projectDeleted(current)) return;
   if (!saveChats(chats)) showError('This browser could not save your chats. They may disappear when you leave.');
 }
-function showError(text) { error.textContent = text; error.hidden = !text; }
+function showError(text) { error.classList.remove('error--warning'); error.textContent = text; error.hidden = !text; }
 function scrollDown() { thread.scrollTop = thread.scrollHeight; }
 function renderList() {
   const list = $('conversations'); list.replaceChildren();
@@ -100,7 +100,7 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
 });
 $('composer').addEventListener('submit', async e => {
-  e.preventDefault(); const text = input.value.trim(); if ((!text && !hasAttachment()) || busy || !getSession()) return;
+  e.preventDefault(); const text = input.value.trim(); if ((!text && !hasAttachment()) || busy) return; if (!requireAuth(() => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); $('composer').requestSubmit(); })) return;
   projects.beforeSend(); if (projectDeleted(current)) return; const owner = getSession()?.user?.id; const active = current; busy = true; lockAttachment(true); $('send').disabled = true; input.disabled = true; showError(''); renderList(); let prepared; try { prepared = await prepareAttachment(text); } catch (err) { if (current === active) showError(err.message || 'Could not prepare attachment.'); busy = false; lockAttachment(false); $('send').disabled = false; input.disabled = false; render(); return; } input.disabled = false; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) { busy = false; lockAttachment(false); $('send').disabled = false; render(); return; }
   const first = !current.messages.length;
   const userText = text || 'Please help with this file.'; current.messages.push({ role: 'user', content: userText, ...(prepared.attachment ? { attachment: prepared.attachment } : {}) }); clearAttachment();
@@ -109,7 +109,7 @@ $('composer').addEventListener('submit', async e => {
   const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
-    const body = await projectPayload(active, payload); const headers = await authHeaders(); if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
+    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner);
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
@@ -123,4 +123,4 @@ $('composer').addEventListener('submit', async e => {
     input.value = ''; showError(err.message || 'Could not connect. Try again.'); save();
   } finally { busy = false; lockAttachment(false); $('send').disabled = false; render(); }
 });
-onChatsChange(reset => { const active = current; chats = liveChats(loadChats()); if (reset) { projects.reset(); discardTemporary(); current = chats[0] || newChat(); enterProjectChat(current); input.value = ''; showError(''); menu(false); } else if (busy && !projectDeleted(active)) { if (!active.temporary) { chats = chats.filter(c => c.id !== active.id); chats.unshift(active); } return; } else { current = !projectDeleted(active) && active.temporary ? active : chats.find(c => c.id === active.id) || chats[0] || newChat(); if (projectDeleted(active)) { leaveProjects(); clearAttachment(); input.value = ''; } } if (!chats.length && !current.temporary) chats = [current]; render(); }); enterProjectChat(current); setupProfile(); render(true);
+onChatsChange(reset => { const active = current; chats = liveChats(loadChats()); if (reset) { projects.reset(); if (!pendingGuest()) discardTemporary(); current = chats[0] || newChat(); enterProjectChat(current); input.value = ''; showError(''); menu(false); } else if (busy && !projectDeleted(active)) { if (!active.temporary) { chats = chats.filter(c => c.id !== active.id); chats.unshift(active); } return; } else { current = !projectDeleted(active) && active.temporary ? active : chats.find(c => c.id === active.id) || chats[0] || newChat(); if (projectDeleted(active)) { leaveProjects(); clearAttachment(); input.value = ''; } } if (!chats.length && !current.temporary) chats = [current]; render(); }); enterProjectChat(current); setupProfile(); render(true);
