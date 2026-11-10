@@ -45,7 +45,7 @@ export function putProject(values) {
   const old = values.id && data.rows.find(p => p.id === values.id);
   if (old?.deleted_at) throw Error('This project was deleted.');
   const now = new Date().toISOString();
-  const row = validateProject({ id: values.id || crypto.randomUUID(), user_id: user, name: values.name?.trim(), description: values.description || '', instructions: values.instructions || '', files: values.files || [], created_at: old?.created_at || now, updated_at: now, deleted_at: null });
+  const row = validateProject({ id: values.id || crypto.randomUUID(), user_id: user, name: values.name?.trim(), description: values.description || '', instructions: values.instructions || '', files: values.files || [], pinned: typeof values.pinned === 'boolean' ? values.pinned : !!old?.pinned, created_at: old?.created_at || now, updated_at: now, deleted_at: null });
   const before = copy(data);
   data.rows = data.rows.filter(p => p.id !== row.id).concat(row); data.pending[row.id] = row;
   if (!persist()) { data = before; throw Error('Device storage is full. Project changes were not saved.'); }
