@@ -2,7 +2,7 @@ import { getProject, projectRows, putProject, deleteProject, onProjectsChange } 
 import { projectNav as nav, enterProject, leaveProjects } from './projects-context.js';
 import { projectSelectors, drawProjects, drawProjectChats, projectChip } from './projects-view.js';
 import { projectSheet, closeProjectSheet } from './projects-sheet.js';
-import { knowledgeFiles } from './projects-files.js';
+import { knowledgeFiles } from './projects-files.js'; import { requireAuth } from './guest.js';
 function field(host, title, value, max, multiline = false) {
   const label = document.createElement('label'), input = document.createElement(multiline ? 'textarea' : 'input');
   label.textContent = title; input.value = value; input.maxLength = max; if (multiline) input.rows = 5;
@@ -14,8 +14,8 @@ export function setupProjects(api) {
     if (tab === 'chats') { leaveProjects(); api.normal(); }
     else { nav.tab = 'projects'; api.refresh(); }
   });
-  function open(id) { if (!api.busy() && enterProject(id)) { api.closeMenu(); api.refresh(); } }
-  function create() {
+  function open(id) { if (!requireAuth(() => open(id))) return; if (!api.busy() && enterProject(id)) { api.closeMenu(); api.refresh(); } }
+  function create() { if (!requireAuth(create)) return;
     projectSheet('New project', (host, close) => {
       const name = field(host, 'Name', '', 80), description = field(host, 'Description (optional)', '', 500, true);
       name.required = true;
