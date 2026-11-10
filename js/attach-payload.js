@@ -9,7 +9,7 @@ export function modelPayload(messages) {
     const files = attachments(message.attachment);
     files.forEach(a => { delete a.requestNote; });
     const m = { role: message.role, content: (files.length ? attachmentNote(files) + '\n\n' : '') + message.content };
-    if (message.role === 'user') for (const a of files) {
+    if (message === messages[messages.length - 1] && message.role === 'user') for (const a of files) {
       if (typeof a.data === 'string' && a.data.startsWith('data:image/jpeg;base64,')) refs.push({ m, a, data: a.data, keep: true });
     }
     return m;
