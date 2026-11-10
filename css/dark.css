@@ -37,3 +37,4 @@
 :root[data-theme] .context-menu .context-danger{color:var(--danger-ink,#b33e32)}
 :root[data-theme] .chat-options .delete-chat{color:var(--danger-ink,#b5473b)}
 :root[data-theme] .original-view a{color:var(--composer-text,#ac743c)}
+:root[data-theme] .topbar #open-menu{background:var(--panel-glass,rgba(255,255,255,.55))}
