@@ -19,16 +19,16 @@ export function setupProjects(api) {
     projectSheet('New project', (host, close) => {
       const name = field(host, 'Name', '', 80), description = field(host, 'Description (optional)', '', 500, true);
       name.required = true;
-      const status = document.createElement('p'); status.setAttribute('role', 'status');
+      const status = document.createElement('p'); status.setAttribute('role', 'alert');
       const add = document.createElement('button'); add.type = 'button'; add.className = 'project-primary'; add.textContent = 'Create project';
-      add.onclick = () => { try { const p = putProject({ name: name.value, description: description.value }); close(true); open(p.id); } catch (e) { status.textContent = e.message; name.focus(); } };
+      add.onclick = () => { try { const p = putProject({ name: name.value, description: description.value }); close(true); open(p.id); } catch (e) { status.hidden=false; status.textContent = e.message; name.focus(); } };
       host.append(status, add);
     });
   }
-  function rename(id) { if(!requireAuth(()=>rename(id)))return; const p=getProject(id);if(!p)return; projectSheet('Rename project',(host,close)=>{const name=field(host,'Name',p.name,80);name.style.fontSize='16px'; const status=document.createElement('p'),save=document.createElement('button');status.setAttribute('role','status');save.type='button';save.className='project-primary';save.textContent='Save';save.onclick=()=>{try{const latest=getProject(id);if(!latest)throw Error('Project is unavailable.');putProject({...latest,name:name.value});close(true);}catch(e){status.hidden=false;status.textContent=e.message;}};host.append(status,save);name.focus();}); } function rowMenu(id) { const p=getProject(id);if(!p)return []; const run=fn=>()=>{if(api.busy())return;if(!requireAuth(()=>run(fn)()))return;try{fn();}catch(e){api.notice(e.message);}};return [{label:p.pinned?'Unpin':'Pin',icon:'pin',run:run(()=>{const latest=getProject(id);if(latest)putProject({...latest,pinned:!latest.pinned});})},{label:'Rename',icon:'rename',run:run(()=>rename(id))},{label:'Delete',icon:'delete',danger:true,run:run(()=>settings(id,true))}]; } function settings(id, deleting = false) { if(!requireAuth(()=>settings(id,deleting)))return;
+  function rename(id) { if(!requireAuth(()=>rename(id)))return; const p=getProject(id);if(!p)return; projectSheet('Rename project',(host,close)=>{const name=field(host,'Name',p.name,80);name.style.fontSize='16px'; const status=document.createElement('p'),save=document.createElement('button');status.setAttribute('role','alert');save.type='button';save.className='project-primary';save.textContent='Save';save.onclick=()=>{try{const latest=getProject(id);if(!latest)throw Error('Project is unavailable.');putProject({...latest,name:name.value});close(true);}catch(e){status.hidden=false;status.textContent=e.message;}};host.append(status,save);name.focus();}); } function rowMenu(id) { const p=getProject(id);if(!p)return []; const run=fn=>()=>{if(api.busy())return;if(!requireAuth(()=>run(fn)()))return;try{fn();}catch(e){api.notice(e.message);}};return [{label:p.pinned?'Unpin':'Pin',icon:'pin',run:run(()=>{const latest=getProject(id);if(latest)putProject({...latest,pinned:!latest.pinned});})},{label:'Rename',icon:'rename',run:run(()=>rename(id))},{label:'Delete',icon:'delete',danger:true,run:run(()=>settings(id,true))}]; } function settings(id, deleting = false) { if(!requireAuth(()=>settings(id,deleting)))return;
     let draft = getProject(id), instructions, files, status, confirming = false;
     if (!draft) return;
-    const tell = text => { status.hidden=false; status.textContent = text; };
+    const tell = text => { status.setAttribute('role', /^(Extracting file text|Please wait for file extraction)/.test(text) ? 'status' : 'alert'); status.hidden=false; status.textContent = text; };
     function save() {
       if (!getProject(id)) return true;
       if (files?.busy) { tell('Please wait for file extraction to finish.'); return false; }
@@ -40,7 +40,7 @@ export function setupProjects(api) {
       function build() {
         confirming = false; host.replaceChildren();
         instructions = field(host, 'Instructions', draft.instructions, 12000, true);
-        status = document.createElement('p'); status.setAttribute('role', 'status'); status.className = 'project-hint';
+        status = document.createElement('p'); status.setAttribute('role', 'alert'); status.className = 'project-hint';
         files = knowledgeFiles(host, () => draft.files, next => {
           draft = putProject({ ...draft, instructions: instructions.value, files: next });
         }, tell);
@@ -50,7 +50,7 @@ export function setupProjects(api) {
           const warning = document.createElement('p'); warning.textContent = 'Delete “' + draft.name + '” and all its chats? Instructions and knowledge will also be removed. This cannot be undone.';
           const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.onclick = build;
           const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'project-danger'; confirm.textContent = 'Delete project and chats';
-          confirm.onclick = () => { try { deleteProject(id); close(true); } catch (e) { warning.textContent = e.message; } };
+          confirm.onclick = () => { try { deleteProject(id); close(true); } catch (e) { warning.setAttribute('role','alert'); warning.hidden=false; warning.textContent = e.message; } };
           host.append(warning, cancel, confirm); cancel.focus();
         };
         host.append(status, remove); if(deleting){deleting=false;remove.click();}
