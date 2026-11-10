@@ -100,7 +100,7 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
 });
 $('composer').addEventListener('submit', async e => {
-  e.preventDefault(); const text = input.value.trim(); if ((!text && !hasAttachment()) || busy) return; if (!requireAuth(() => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); $('composer').requestSubmit(); })) return;
+  e.preventDefault(); const text = input.value.trim(); if ((!text && !hasAttachment()) || busy) return; if (!requireAuth(() => { leaveProjects(); current = newChat(); chats.unshift(current); enterProjectChat(current); input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); $('composer').requestSubmit(); })) return;
   projects.beforeSend(); if (projectDeleted(current)) return; const owner = getSession()?.user?.id; const active = current; busy = true; lockAttachment(true); $('send').disabled = true; input.disabled = true; showError(''); renderList(); let prepared; try { prepared = await prepareAttachment(text); } catch (err) { if (current === active) showError(err.message || 'Could not prepare attachment.'); busy = false; lockAttachment(false); $('send').disabled = false; input.disabled = false; render(); return; } input.disabled = false; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) { busy = false; lockAttachment(false); $('send').disabled = false; render(); return; }
   const first = !current.messages.length;
   const userText = text || 'Please help with this file.'; current.messages.push({ role: 'user', content: userText, ...(prepared.attachment ? { attachment: prepared.attachment } : {}) }); clearAttachment();
@@ -124,3 +124,9 @@ $('composer').addEventListener('submit', async e => {
   } finally { busy = false; lockAttachment(false); $('send').disabled = false; render(); }
 });
 onChatsChange(reset => { const active = current; chats = liveChats(loadChats()); if (reset) { projects.reset(); if (!pendingGuest()) discardTemporary(); current = chats[0] || newChat(); enterProjectChat(current); input.value = ''; showError(''); menu(false); } else if (busy && !projectDeleted(active)) { if (!active.temporary) { chats = chats.filter(c => c.id !== active.id); chats.unshift(active); } return; } else { current = !projectDeleted(active) && active.temporary ? active : chats.find(c => c.id === active.id) || chats[0] || newChat(); if (projectDeleted(active)) { leaveProjects(); clearAttachment(); input.value = ''; } } if (!chats.length && !current.temporary) chats = [current]; render(); }); enterProjectChat(current); setupProfile(); render(true);
+window.addEventListener('steep:guest-image', event => {
+  if (!getSession() || busy || typeof event.detail !== 'string') return;
+  leaveProjects(); current = newChat(); chats.unshift(current); enterProjectChat(current);
+  current.messages.push({ role: 'assistant', content: '[img: ' + event.detail + ']' });
+  save(); showError(''); render();
+});
