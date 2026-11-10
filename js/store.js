@@ -1,5 +1,5 @@
 import { onAuthChange } from './auth.js';
-import { readCache, writeCache, claimLegacy, validChats, toRow, fromRow, fingerprint } from './chat-cache.js';
+import { readCache, writeCache, claimLegacy, sealLegacy, validChats, toRow, fromRow, fingerprint } from './chat-cache.js';
 import { chatRequest, fetchChats } from './chat-sync.js';
 const listeners = new Set(), copy = value => JSON.parse(JSON.stringify(value));
 let state;
@@ -55,7 +55,7 @@ async function sync(c) {
       }
       c.data.chats = validChats([...merged.values()]).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
       if (!persist(c)) throw new Error('Storage unavailable');
-      c.loaded = true; emit(false);
+      if (!sealLegacy(c.user)) throw new Error('Storage unavailable'); c.loaded = true; emit(false);
     }
     // Snapshot queue entries; a newer change must never be acknowledged by an older response.
     for (const [id, item] of Object.entries(c.data.pending)) {
