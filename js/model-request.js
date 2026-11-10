@@ -1,21 +1,24 @@
 import { authHeaders } from './auth.js';
 import { cooldown } from './cooldown.js';
-// The caller owns conversation/account cancellation and final error copy.
-export async function modelRequest(body, node, active, waiting = () => {}) {
+let current;
+export function beginRequest() { current?.abort(); current = new AbortController(); return current; }
+export function stopRequest() { current?.abort(); }
+export function finishRequest(controller) { if (current === controller) current = null; }
+export async function modelRequest(body, node, active, waiting = () => {}, signal) {
+  const live = () => !signal?.aborted && active();
+  const check = () => { if (signal?.aborted) throw new DOMException('Stopped', 'AbortError'); if (!active()) throw new Error('Session changed'); };
   for (let retry = 0; ; retry++) {
-    const headers = await authHeaders();
-    if (!active()) throw new Error('Session changed');
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
-    if (!active()) return response;
+    check(); const headers = await authHeaders(); check();
+    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body, signal });
+    check();
     if (response.status !== 429 || retry >= 2) return response;
     const data = await response.clone().json().catch(() => ({}));
     const seconds = Number(data.retryAfter);
-    // Do not invent a waiting period when upstream provides no retry data.
     if (data.retryAfter == null || !Number.isFinite(seconds) || seconds < 0) return response;
     waiting(true);
     let ready;
-    try { ready = await cooldown(node, 'Model cooldown', Date.now() + seconds * 1000, active); }
+    try { ready = await cooldown(node, 'Model cooldown', Date.now() + seconds * 1000, live); }
     finally { waiting(false); }
-    if (!ready) return response;
+    check(); if (!ready) return response;
   }
 }
