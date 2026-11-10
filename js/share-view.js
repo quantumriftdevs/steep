@@ -1,3 +1,4 @@
+import { previewOriginal } from './attach-view.js';
 import { renderMarkdown } from './markdown.js';
 const host = document.getElementById('shared-messages'), status = document.getElementById('share-status');
 const token = new URLSearchParams(location.search).get('t') || location.pathname.split('/').filter(Boolean)[1] || '';
@@ -5,9 +6,9 @@ const imageURL = value => typeof value === 'string' && /^(https:\/\/|data:image\
 function attachment(value, body) {
   for (const a of Array.isArray(value) ? value : [value]) {
     if (!a || typeof a !== 'object') continue;
-    const src = a.original && imageURL(a.original) ? a.original : a.thumb || a.jpeg || a.dataUrl;
+    const src = a.original && imageURL(a.original) ? a.original : a.thumb || a.jpeg || a.dataUrl || a.data;
     if (a.kind === 'image' && imageURL(src)) { const img = document.createElement('img'); img.src = src; img.alt = String(a.name || 'Shared image'); img.className = 'attach-preview'; img.referrerPolicy = 'no-referrer'; body.append(img); }
-    else { const name = document.createElement('p'); name.textContent = String(a.name || 'Attachment'); body.append(name); }
+    else { const name = document.createElement('p'); name.textContent = String(a.name || 'Attachment'); name.tabIndex = 0; name.setAttribute('role', 'button'); name.onclick = () => previewOriginal(a); name.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); previewOriginal(a); } }; body.append(name); }
   }
 }
 async function load() {
