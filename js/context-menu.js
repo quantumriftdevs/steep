@@ -1,6 +1,7 @@
 // Only explicitly bound recent-chat/project rows get a menu.
-let menu, owner;
-export function closeMenu() { menu?.remove(); menu = owner = null; }
+const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/css/context-menu.css'; document.head.append(css);
+let menu, owner, cancelHold;
+export function closeMenu() { cancelHold?.(); menu?.remove(); menu = owner = null; }
 async function openMenu(row, items, x, y) {
   closeMenu(); owner = row;
   const entries = await items(); if (owner !== row || !row.isConnected) return;
@@ -21,10 +22,10 @@ async function openMenu(row, items, x, y) {
 }
 export function bindMenu(row, items) {
   let timer, start, held = false;
-  const cancel = () => { clearTimeout(timer); timer = null; };
+  const cancel = () => { clearTimeout(timer); timer = null; if (cancelHold === cancel) cancelHold = null; };
   row.addEventListener('pointerdown', e => {
     if (e.button !== 0 || row.disabled) return;
-    cancel(); held = false; start = { x: e.clientX, y: e.clientY };
+    cancelHold?.(); cancelHold = cancel; held = false; start = { x: e.clientX, y: e.clientY };
     timer = setTimeout(() => { held = true; openMenu(row, items, start.x, start.y); }, 500);
   });
   row.addEventListener('pointermove', e => { if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel(); });
@@ -34,8 +35,7 @@ export function bindMenu(row, items) {
   row.addEventListener('keydown', e => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = row.getBoundingClientRect(); openMenu(row, items, r.left, r.bottom); } });
 }
 document.addEventListener('pointerdown', e => { if (menu && !menu.contains(e.target)) closeMenu(); }, true);
-document.addEventListener('scroll', closeMenu, true);
-window.addEventListener('resize', closeMenu);
+document.addEventListener('scroll', closeMenu, true); window.addEventListener('resize', closeMenu);
 document.addEventListener('keydown', e => {
   if (!menu) return;
   if (e.key === 'Escape') { const row = owner; closeMenu(); row?.focus(); }
