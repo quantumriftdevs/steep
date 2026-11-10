@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
         body
       });
       const data = await response.json();
-      if (!response.ok) return res.status(502).json({
+      if (!response.ok) return res.status(response.status === 429 ? 429 : 502).json({ ...(response.status === 429 ? { retryAfter: (() => { const raw = response.headers.get('retry-after'); if (raw === null) return undefined; const seconds = Number(raw); return Number.isFinite(seconds) ? Math.max(0, seconds) : Math.max(0, (Date.parse(raw) - Date.now()) / 1000) || undefined; })() } : {}),
         error: 'Steep could not reach the model. Check your Groq key, model and quota in Vercel.',
         detail: `Groq HTTP ${response.status}: ${typeof data.error?.message === 'string' ? data.error.message.slice(0, 500) : 'Upstream request failed'}`
       });
