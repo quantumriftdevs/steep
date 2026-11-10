@@ -40,7 +40,7 @@ export function previewOriginal(a) {
   const blob = originalBlob(a), name = a.name || 'Original file';
   if (a.kind === 'image' && (blob || a.thumb)) {
     const url=blob?URL.createObjectURL(blob):a.thumb;showImage(url,name);
-    const d=document.querySelector('dialog.original-view:last-of-type'); if(blob&&d)d.addEventListener('close',()=>URL.revokeObjectURL(url),{once:true});return;
+    const d=document.querySelector('dialog.original-view:last-of-type'); if(blob&&d)d.addEventListener('close',()=>setTimeout(()=>URL.revokeObjectURL(url),300000),{once:true});return;
   }
   const d=sheet(name), p=document.createElement('p');p.textContent=blob ? (/\.docx$/i.test(name) ? 'Download the original DOCX and open it in Word or another document viewer. This is the original file, not extracted text.' : 'Open or download the original file.') : 'The original was not retained in this chat. Please attach the source file again to preview it.';d.append(p);
   if(!blob)return;
@@ -48,7 +48,7 @@ export function previewOriginal(a) {
   const url=URL.createObjectURL(pdf?new Blob([blob],{type:'application/pdf'}):blob);
   const download=document.createElement('a');download.href=url;download.download=name;download.textContent='Download original';d.append(download);
   if(pdf){const open=document.createElement('a');open.href=url;open.target='_blank';open.rel='noopener';open.textContent='Open original PDF';d.append(open);window.open(url,'_blank','noopener');}
-  d.addEventListener('close',()=>URL.revokeObjectURL(url),{once:true});
+  d.addEventListener('close',()=>setTimeout(()=>URL.revokeObjectURL(url),300000),{once:true});
 }
 export function attachmentView(a, preview = false) {
   const fragment = document.createDocumentFragment();
@@ -63,4 +63,4 @@ export function attachmentView(a, preview = false) {
   return fragment;
 }
 // Received/generated images use their displayed source; never regenerate to preview.
-document.addEventListener('click',e=>{const img=e.target.closest?.('.sg-card img,.shared-conversation img');if(img)showImage(img.currentSrc||img.src,img.alt||'Image');});
+document.addEventListener('click',e=>{const img=e.target.closest?.('.sg-card img,#shared-messages img');if(img)showImage(img.currentSrc||img.src,img.alt||'Image');});
