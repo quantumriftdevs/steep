@@ -35,3 +35,24 @@ export async function downloadImage(card, tell) {
     document.body.append(a); a.click(); a.remove(); tell('Save the opened image (long-press on iPhone).');
   }
 }
+// Sharing reads only already-generated local blobs; never generates another image.
+export async function cachedImageSnapshots(text) {
+  const images = [];
+  for (const part of imageParts(String(text || ''))) {
+    if (!part.prompt) continue;
+    const prefix = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(part.prompt) + '?';
+    const entries = [...imageCache].filter(([url]) => url.startsWith(prefix));
+    const object = entries.at(-1)?.[1];
+    if (!object) continue;
+    try {
+      const blob = await (await fetch(object)).blob();
+      if (blob.size > 1100000) throw Error('This chat is too large to share');
+      images.push(await new Promise((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(Error('Could not prepare this image for sharing.'));
+        reader.readAsDataURL(blob);
+      }));
+    } catch (error) { throw Error(error.message || 'Could not prepare this image for sharing.'); }
+  }
+  return images;
+}
