@@ -9,7 +9,7 @@
 .sg-ready .sg-dots:after,.sg-ready .sg-dots:before,.sg-error .sg-dots:after,.sg-error .sg-dots:before{animation:none;}
 .sg-error{cursor:pointer;}
 .sg-error .sg-status{white-space:normal;width:85%;text-align:center;}
-.sg-error:focus-visible{outline:2px solid #666666;outline-offset:2px;}
+.sg-card:not(.sg-ready){max-width:55%;}.sg-error:focus-visible{outline:none;}
 @keyframes sg-wave{from{-webkit-mask-position:100% 0;mask-position:100% 0;}to{-webkit-mask-position:0% 0;mask-position:0% 0;}}
 @keyframes sg-breathe{50%{opacity:.2;}}
 @media(prefers-reduced-motion:reduce){.sg-dots:after,.sg-dots:before{animation:none;}.sg-card img,.sg-dots{transition:none;}}
