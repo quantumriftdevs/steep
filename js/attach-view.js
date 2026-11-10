@@ -15,7 +15,7 @@ export async function keepOriginal(file, remaining = 192 * 1024) {
 }
 function originalBlob(a) {
   const file = a.file || temporary.get(a.originalKey); if (file) return file;
-  if (typeof a.original !== 'string' || !/^data:[^,]*;base64,/.test(a.original) || a.original.length > 132000) return null;
+  if (typeof a.original !== 'string' || !/^data:[^,]*;base64,/.test(a.original) || a.original.length > (a.generated === true && /^(pdf|docx|md|txt|html|csv)$/.test(a.format) && /^data:(?:application\/(?:pdf|vnd\.openxmlformats-officedocument\.wordprocessingml\.document)|text\/(?:markdown|plain|html|csv))(?:;charset=[^;,]+)?;base64,/i.test(a.original) ? 1000000 : 132000)) return null;
   try { const comma = a.original.indexOf(','), raw = atob(a.original.slice(comma+1)); return new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))], { type: a.original.slice(5,comma).replace(/;base64$/,'') }); } catch { return null; }
 }
 function sheet(title) {
