@@ -14,7 +14,7 @@
 .attach-preview{display:block;max-width:100%;width:180px;max-height:200px;object-fit:cover;border-radius:14px;margin:0 0 8px;cursor:zoom-in;}
 .bubble>.attach-file{font-size:13px;margin-bottom:6px;}
 /* View-only originals and received images. No drawer or page geometry changes. */
-.original-view{box-sizing:border-box;width:min(92vw,540px);max-height:90dvh;padding:24px;border:1px solid var(--line,#d9cfc0);border-radius:24px;background:var(--paper,#fffaf0);color:var(--ink,#352b22);box-shadow:0 18px 70px #0005;font:16px/1.5 inherit;overflow:auto;}
+.original-view{box-sizing:border-box;width:min(92vw,540px);max-height:90dvh;padding:24px;border:1px solid var(--line,#d9cfc0);border-radius:24px;background:var(--paper,#fffaf0);color:var(--ink,#352b22);box-shadow:0 18px 70px #0005;font-family:inherit;font-size:16px;line-height:1.5;overflow:auto;}
 .original-view::backdrop{background:#100b08aa;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
 .original-view a{display:block;color:var(--accent,#ac743c);padding:12px 0;overflow-wrap:anywhere;}
 .original-close{position:relative;z-index:2;float:right;border:1px solid #bd9c6966;border-radius:99px;padding:10px 18px;background:#ad884c22;color:inherit;font:inherit;font-size:16px;cursor:pointer;}
