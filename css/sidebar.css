@@ -10,3 +10,6 @@
 #conversations button{display:flex;align-items:center;gap:12px}
 #conversations button .app-icon{width:20px;height:20px;flex:none;color:var(--muted)}
 #conversations button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Keep iOS long-press selection and callouts out of the sidebar only. */
+.sidebar,.sidebar *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
