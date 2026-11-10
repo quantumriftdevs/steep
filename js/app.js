@@ -1,3 +1,4 @@
+import { documentReply } from './doc-gen.js'; import { markFreshImages } from './image-gen.js';
 import { getSession, logout } from './auth.js'; import { modelRequest, beginRequest, finishRequest, stopRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
 import { setupProfile, recentLabel, pinMarker } from './sidebar.js'; import { setupProjects } from './projects.js'; import { projectNav, enterProjectChat, leaveProjects, liveChats, projectDeleted, tagProjectChat } from './projects-context.js'; import { projectPayload } from './projects-request.js';
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
@@ -82,7 +83,7 @@ function render(welcome = false) {
     messages.append(empty);
   } else current.messages.forEach((m, index) => {
     m.id ||= current.id + '-message-' + index;
-    const body = bubble(messages, m.role, m.content, m.attachment);
+    const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
     if (m.role === 'assistant') responseActions(body, m, {
       current: () => current, busy: () => busy, save, notice: showError,
       adopt: chat => { current = chat; chats = chats.filter(c => c.id !== chat.id); chats.unshift(chat); enterProjectChat(chat); save(); }, lock: value => { requestState(value); lockAttachment(value); render(); }
@@ -112,9 +113,9 @@ $('composer').addEventListener('submit', async e => {
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-    typing.classList.remove('typing'); await animate(typing, data.reply, scrollDown, controller.signal); if (controller.signal.aborted) return;
+    const reply = await documentReply(data, active, controller.signal, showError); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
-    current.messages.push({ role: 'assistant', content: data.reply, ...(data.research ? { research: data.research } : {}) }); save();
+    const message = { role: 'assistant', ...reply }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     // Keep the sent message locally even when the model/network is unavailable.
@@ -125,6 +126,6 @@ onChatsChange(reset => { const active = current; chats = liveChats(loadChats());
 window.addEventListener('steep:guest-image', event => {
   if (!getSession() || busy || typeof event.detail !== 'string') return;
   leaveProjects(); current = newChat(); chats.unshift(current); enterProjectChat(current);
-  current.messages.push({ role: 'assistant', content: '[img: ' + event.detail + ']' });
+  const message = { role: 'assistant', content: '[img: ' + event.detail + ']' }; current.messages.push(message); markFreshImages(message);
   save(); showError(''); render();
 });
