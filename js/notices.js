@@ -1,6 +1,6 @@
 // Terminal notices expire independently; queue deadlines belong to cooldown.js.
 const states = new WeakMap();
-function unfade(node) { if (node.classList.contains('notice-fade')) node.classList.remove('notice-fade'); }
+function unfade(node) { if (node.classList.contains('notice-fading')) node.classList.remove('notice-fading'); }
 function watch(node) {
   let state = states.get(node);
   if (!state) { state = {}; states.set(node, state); }
@@ -11,7 +11,7 @@ function watch(node) {
   }
   if (state.text === text) return;
   clearTimeout(state.fade); clearTimeout(state.hide); state.text = text; unfade(node);
-  state.fade = setTimeout(() => node.classList.add('notice-fade'), 4750);
+  state.fade = setTimeout(() => node.classList.add('notice-fading'), 4750);
   state.hide = setTimeout(() => { node.hidden = true; node.textContent = ''; state.text = ''; unfade(node); }, 5000);
 }
 const scan = () => document.querySelectorAll('.error,[role="alert"],#settings-feedback').forEach(watch);
