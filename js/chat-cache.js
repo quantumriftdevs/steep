@@ -34,3 +34,11 @@ export function fromRow(row) {
 export function fingerprint(chat) {
   return JSON.stringify([chat.title, chat.customTitle || '', !!chat.pinned, chat.messages, chat.projectId || '']);
 }
+// Seal even when an already-migrated account suppresses legacy import.
+export function sealLegacy(user) {
+  if (!user) return false;
+  try {
+    if (!localStorage.getItem(OWNER)) localStorage.setItem(OWNER, user);
+    return !!localStorage.getItem(OWNER);
+  } catch { return false; }
+}
