@@ -106,10 +106,10 @@ $('composer').addEventListener('submit', async e => {
   const userText = text || 'Please help with this file.'; current.messages.push({ role: 'user', content: userText, ...(prepared.attachment ? { attachment: prepared.attachment } : {}) }); clearAttachment();
   if (first) current.title = userText.slice(0, 42); save();
   input.value = ''; input.style.height = 'auto'; render();
-  const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.textContent = 'Steep is thinking…'; scrollDown();
+  const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.innerHTML = '<span class="model-dots" role="status" aria-label="Generating reply"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></span>';  scrollDown();
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
-    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner);
+    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; });
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.code === 'NOT_CONNECTED' ? "Steep isn't connected yet - add the API key in Vercel" : (data.error || 'Something went wrong. Try again.'));
