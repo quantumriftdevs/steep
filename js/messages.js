@@ -1,14 +1,18 @@
 import { renderMarkdown } from './markdown.js';
 import { attachmentView } from './attach-view.js';
 import { imageParts, imageCard, renderImageReply } from './image-gen.js';
+import { documentCard } from './doc-view.js';
 
-export function bubble(messages, role, content, attachment) {
+export function bubble(messages, role, content, attachment, options = {}) {
   const row = document.createElement('div'); row.className = `message ${role}`;
   if (role === 'assistant') {
     const avatar = document.createElement('span'); avatar.className = 'avatar'; avatar.textContent = 's'; row.append(avatar);
   }
   const body = document.createElement('div'); body.className = 'bubble';
-  if (role === 'assistant') body.append(renderImageReply(content)); else {
+  if (role === 'assistant') {
+    body.append(renderImageReply(content, options));
+    if (options.message?.document) body.append(documentCard(options.message.document));
+  } else {
     if (attachment) body.append(attachmentView(attachment));
     body.append(document.createTextNode(content));
   }
