@@ -1,0 +1,3 @@
+/* Waiting is not a failure; only cooldown elements use this modifier. */
+.error.error--warning,.sg-status.error--warning{color:var(--dark);background:var(--pale);border:1px solid var(--line);padding:7px 12px;border-radius:12px;animation:none;transition:none;}
+.sg-card:has(.error--warning) .sg-dots:before,.sg-card:has(.error--warning) .sg-dots:after{animation:none;}
