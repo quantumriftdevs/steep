@@ -13,7 +13,16 @@ export function documentCard(d) {
   const info=document.createElement('div'), name=document.createElement('strong'), size=document.createElement('span');
   name.textContent=String(d.name||'Steep document').slice(0,100); size.textContent=Math.max(1,Math.round((Number(d.size)||d.original.length*.75)/1024))+' KB';info.append(name,size);
   const preview=document.createElement('button');preview.type='button';preview.textContent='Preview';preview.onclick=()=>previewOriginal(d);
-  const download=document.createElement('a');download.textContent='Download';download.download=name.textContent;download.href=d.original;
-  // Native anchor activation is intentional, including iOS; never re-fetch a provider.
+  const download=document.createElement('a');download.textContent='Download';download.download=name.textContent;download.href='#';
+  // Native anchor activation with a blob URL is intentional, including iOS; never re-fetch a provider.
+  download.onclick=e=>{
+    try {
+      const comma=d.original.indexOf(','), raw=atob(d.original.slice(comma+1));
+      const blob=new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:d.original.slice(5,comma).replace(/;base64$/i,'')});
+      const url=URL.createObjectURL(blob);download.href=url;
+      // Give Safari time to start saving; each tap gets a fresh URL, even after cleanup.
+      setTimeout(()=>{URL.revokeObjectURL(url);if(download.href===url)download.href='#';},300000);
+    } catch { e.preventDefault(); }
+  };
   card.append(badge,info,preview,download);root.append(card);return root;
 }
