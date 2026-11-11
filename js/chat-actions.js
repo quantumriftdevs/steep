@@ -35,7 +35,11 @@ export function setupChatActions(ghost, api) {
   function openRename() {
     const c = api.current(); if (c.temporary) return;
     panel.hidden = false; more.setAttribute('aria-expanded', 'true');
-    editor.hidden = false; name.value = c.customTitle || c.title || ''; name.focus(); name.select();
+    // The sidebar can derive a title from messages even when stored titles are missing.
+    const firstUser = c.messages.find(m => m.role === 'user' && typeof m.content === 'string');
+    editor.hidden = false;
+    name.value = c.customTitle?.trim() || c.title?.trim() || (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';
+    name.focus(); name.select();
   }
   const rename = row('Rename', '<path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/>', openRename);
   const editor = document.createElement('form'); editor.className = 'chat-rename'; editor.hidden = true;
