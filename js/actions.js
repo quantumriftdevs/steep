@@ -37,7 +37,7 @@ export function responseActions(body, message, api) { if (Array.isArray(message.
     window.speechSynthesis.speak(speech);
   }); play.setAttribute('aria-pressed', 'false');
   let up, down;
-  function vote(value) {
+  function vote(value) { if (api.busy()) return; const chat = api.current(); if (!requireAuth(() => { api.adopt(chat); vote(value); })) return;
     message.feedback = message.feedback === value ? null : value; api.save();
     up.setAttribute('aria-pressed', String(message.feedback === 'up'));
     down.setAttribute('aria-pressed', String(message.feedback === 'down'));
