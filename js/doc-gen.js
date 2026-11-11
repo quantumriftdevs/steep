@@ -22,11 +22,16 @@ function check(signal) { if (signal?.aborted) throw new DOMException('Stopped','
 export async function documentReply(data, chat, signal, notice = () => {}) {
   const result = { content: data.reply, ...(data.research ? { research: data.research } : {}) };
   const d = data.document;
-  if (!d || !['pdf','docx','md','txt','html','csv'].includes(d.format) || !/^STEEP_DOCUMENT_[a-f0-9]{32}$/.test(d.marker)) return result;
+  const failed = () => notice("Steep couldn't format that reply as a document - try asking again");
+  if (!d || !['pdf','docx','md','txt','html','csv'].includes(d.format) || !/^STEEP_DOCUMENT_[a-f0-9]{32}$/.test(d.marker)) {
+    if (data.documentIntent || d) failed();
+    return result;
+  }
   const begin = '<<<'+d.marker+':BEGIN>>>', end = '<<<'+d.marker+':END>>>';
   const a = data.reply.indexOf(begin), b = data.reply.indexOf(end, a + begin.length);
-  if(a<0 || b<0) { notice('The document block was incomplete. The reply is kept below; please retry.'); return result; }
-  const source = data.reply.slice(a+begin.length,b).trim().replace(/^filename:[^\n]*\n/i,'');
+  if(a<0 || b<0) { failed(); return result; }
+    const source = data.reply.slice(a+begin.length,b).trim().replace(/^filename:[^\n]*(?:\n|$)/i,'').trim();
+  if (!source) { failed(); return result; }
   const lead = (data.reply.slice(0,a)+data.reply.slice(b+end.length)).trim() || 'Here is your document.';
   result.content = lead+'\n\n'+source;
   const name = String(d.filename || 'steep-document').replace(/\.[^.]+$/,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,80) || 'steep-document';
