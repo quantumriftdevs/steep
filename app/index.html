@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="stylesheet" href="/css/page.css">
+  <script type="module" src="/js/page-view.js"></script>
   <meta charset="utf-8"><script>try{const t=localStorage.getItem('steep-theme-v1');document.documentElement.dataset.theme=['light','dark','system'].includes(t)?t:'system'}catch{document.documentElement.dataset.theme='system'}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chat with Steep</title>
@@ -57,7 +59,7 @@
       </div>
       <div class="composer-wrap">
         <p id="error" class="error" role="alert" hidden></p>
-        <form id="composer" class="composer"><button id="attach-plus" class="attach-plus" type="button" aria-label="Add attachment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><input id="pick-file" type="file" hidden><div class="attach-entry"><label class="sr-only" for="prompt">Message Steep</label><div id="attach-chip" class="attach-chip" hidden></div><textarea id="prompt" rows="1" maxlength="12000" placeholder="Ask Steep anything…"></textarea></div><button id="send" type="submit" aria-label="Send message"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4M6 10l6-6 6 6"/></svg></button></form>
+        <form id="composer" class="composer"><button id="attach-plus" class="attach-plus" type="button" aria-label="Add attachment"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><input id="pick-file" type="file" hidden><div class="attach-entry"><label class="sr-only" for="prompt">Message Steep</label><div id="attach-chip" class="attach-chip" hidden></div><textarea id="prompt" rows="1" maxlength="12000" placeholder="Ask Steep anything…"></textarea></div><button id="send" type="submit" aria-label="Send message"><svg class="app-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V4M6 10l6-6 6 6"/></svg></button></form>
       </div>
     </main>
   </div>
