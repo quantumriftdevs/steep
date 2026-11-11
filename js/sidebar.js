@@ -20,3 +20,42 @@ export function recentLabel(button, title) {
   path.setAttribute('d', 'M20 11a8 8 0 0 1-8 8H5l2-3a8 8 0 1 1 13-5Z'); icon.append(path);
   const label = document.createElement('span'); label.textContent = title; button.append(icon, label);
 }
+
+let cancelRename;
+export function closeSidebarRename() { cancelRename?.(); }
+export function openSidebarRename(chat, persist) {
+  if (chat.temporary) return;
+  closeSidebarRename();
+  const list = document.getElementById('conversations');
+  const row = [...list.children].find(button => button.dataset.chatId === chat.id);
+  if (!row || row.disabled) return;
+  const editor = document.createElement('form'); editor.className = 'sidebar-rename';
+  const name = document.createElement('input'); name.type = 'text'; name.maxLength = 80;
+  name.setAttribute('aria-label', 'Chat title');
+  const firstUser = chat.messages.find(m => m.role === 'user' && typeof m.content === 'string');
+  name.value = chat.customTitle || chat.title || (firstUser?.content || '').replace(/\s+/g, ' ').trim() || 'Conversation';
+  const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save title';
+  editor.append(name, save);
+  const cancel = () => {
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('click', outside, true);
+    document.removeEventListener('keydown', escape, true);
+    if (editor.isConnected) editor.replaceWith(row);
+    if (cancelRename === cancel) cancelRename = null;
+  };
+  const outside = e => { if (!editor.contains(e.target)) cancel(); };
+  const escape = e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); e.stopImmediatePropagation(); cancel(); row.focus();
+  };
+  editor.onsubmit = e => {
+    e.preventDefault(); const title = name.value.trim(); cancel();
+    if (title) { chat.customTitle = title; persist(); }
+  };
+  // The original row (and its navigation/long-press handlers) is detached while editing.
+  row.replaceWith(editor); cancelRename = cancel;
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('click', outside, true);
+  document.addEventListener('keydown', escape, true);
+  name.focus(); name.select();
+}
