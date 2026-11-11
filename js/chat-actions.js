@@ -1,5 +1,6 @@
 import { shareChat, activeShare, stopSharing } from './shares.js';
 import { getSession } from './auth.js';
+import { requireAuth } from './guest.js';
 // Chat actions share the app's state and persistence, never a second store.
 export function setupChatActions(ghost, api) {
   const css = document.createElement('link');
@@ -20,7 +21,13 @@ export function setupChatActions(ghost, api) {
   function close() { menuVersion++; panel.hidden = true; more.setAttribute('aria-expanded', 'false'); }
   function row(label, path, action) {
     const b = button(label, path, panel); const text = document.createElement('span'); text.textContent = label; b.append(text);
-    b.onclick = action; return b;
+    b.onclick = () => {
+      if (['Pin', 'Delete'].includes(label)) {
+        const c = api.current();
+        if (!requireAuth(() => { api.adopt(c); action(); })) return;
+      }
+      action();
+    }; return b;
   }
   const pin = row('Pin', '<path d="m9 3 6 0-1 6 4 4H6l4-4-1-6ZM12 13v8"/>', () => {
     const c = api.current(); c.pinned = !c.pinned; close(); api.change();
@@ -34,6 +41,7 @@ export function setupChatActions(ghost, api) {
   revoke.hidden = true;
   function openRename() {
     const c = api.current(); if (c.temporary) return;
+    if (!requireAuth(() => { api.adopt(c); openRename(); })) return;
     panel.hidden = false; more.setAttribute('aria-expanded', 'true');
     // The sidebar can derive a title from messages even when stored titles are missing.
     const firstUser = c.messages.find(m => m.role === 'user' && typeof m.content === 'string');
