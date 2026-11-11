@@ -1,3 +1,4 @@
+const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[attachment removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[attachment removed]');
 export const attachments = value => Array.isArray(value) ? value.filter(Boolean) : value ? [value] : [];
 export function attachmentNote(value) {
   return attachments(value).map(a => (a.kind === 'image' ? '[The user attached a photo: ' + a.name + ']' : 'File attached: ' + a.name) + (a.note ? '\n[' + a.note + ']' : '') + (typeof a.text === 'string' ? '\n' + a.text : '')).join('\n\n');
@@ -8,7 +9,7 @@ export function modelPayload(messages) {
   const history = messages.slice(-99).map(message => {
     const files = attachments(message.attachment);
     files.forEach(a => { delete a.requestNote; });
-    const m = { role: message.role, content: (files.length ? attachmentNote(files) + '\n\n' : '') + message.content };
+    const m = { role: message.role, content: stripFileData((files.length ? attachmentNote(files) + '\n\n' : '') + message.content) };
     if (message === messages[messages.length - 1] && message.role === 'user') for (const a of files) {
       if (typeof a.data === 'string' && a.data.startsWith('data:image/jpeg;base64,')) refs.push({ m, a, data: a.data, keep: true });
     }
