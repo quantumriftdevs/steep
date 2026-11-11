@@ -1,4 +1,3 @@
-import { renderMarkdown } from './markdown.js';
 const loads = new Map(), CAP = 1000000;
 function library(path, global) {
   if (window[global]) return Promise.resolve(window[global]);
@@ -10,12 +9,65 @@ function library(path, global) {
   }));
   return loads.get(global);
 }
+// Document-only Markdown: shared semantic blocks, no HTML interpretation or dependencies.
+function inlineRuns(text, bold = false, italic = false) {
+  text = text.replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+    .replace(/<[^>]*>/g,'').replace(/\\([\\\x60*_{}\[\]()#+.!>~-])/g,'$1');
+  const runs = [], pattern = /(\x60+)([^\x60]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_/g;
+  const add = (value,b = bold,i = italic) => { const clean = value.replace(/[\x60*_#~|]/g,''); if(clean) runs.push({text:clean,bold:b,italic:i}); };
+  let last = 0;
+  for (const m of text.matchAll(pattern)) {
+    add(text.slice(last,m.index));
+    if (m[2] !== undefined) add(m[2]);
+    else runs.push(...inlineRuns(m[3] ?? m[4] ?? m[5] ?? m[6],bold || m[3] !== undefined || m[4] !== undefined,italic || m[5] !== undefined || m[6] !== undefined));
+    last = m.index + m[0].length;
+  }
+  add(text.slice(last)); return runs;
+}
+function markdownBlocks(source) {
+  const lines = source.replace(/\r\n?/g,'\n').split('\n'), blocks = [];
+  const cells = line => line.trim().replace(/^\||\|$/g,'').split('|').map(s=>s.trim());
+  const separator = line => line.includes('|') && cells(line).every(s=>/^:?-{3,}:?$/.test(s));
+  let fenced = false;
+  for (let n=0; n<lines.length; n++) {
+    const raw = lines[n], line = raw.trim();
+    if (/^(?:\x60{3,}|~{3,})/.test(line)) { fenced = !fenced; continue; }
+    if (!line) { blocks.push({type:'space'}); continue; }
+    if (!fenced && line.includes('|') && n+1<lines.length && separator(lines[n+1])) {
+      const headers = cells(line); n++;
+      // Labelled rows stay readable even for narrow columns or very long cells.
+      while(n+1<lines.length && lines[n+1].includes('|') && lines[n+1].trim()) {
+        const row = cells(lines[++n]);
+        blocks.push({type:'text',text:row.map((cell,i)=>(headers[i] || 'Column '+(i+1))+': '+cell).join(' ; ')});
+      }
+      continue;
+    }
+    if (!fenced && /^(?:-{3,}|\*{3,}|_{3,})$/.test(line.replace(/\s/g,''))) { blocks.push({type:'rule'}); continue; }
+    const quote = !fenced && line.match(/^(?:>\s*)+(.+)$/);
+    const content = quote ? quote[1] : line;
+    const heading = !fenced && content.match(/^(#{1,6})\s+(.+?)(?:\s+#+)?$/);
+    const item = !fenced && content.match(/^(?:([-*+])\s+|(\d+)[.)]\s+)(.*)$/);
+    blocks.push({type:'text',text:heading ? heading[2] : item ? item[3] : content,
+      level:heading ? heading[1].length : 0, quote:!!quote,
+      marker:item ? (item[2] ? item[2]+'.' : '\u2022') : '', nested:!!item && /^(?: {2,}|\t)/.test(raw)});
+  }
+  return blocks;
+}
 function documentNode(source) {
   const node = document.createElement('article');
-  node.style.cssText = 'box-sizing:border-box;width:700px;padding:32px;background:#fffaf0;color:#29251f;font:16px/1.6 Georgia,serif;overflow-wrap:anywhere';
-  node.append(renderMarkdown(source));
-  for (const p of node.querySelectorAll('p')) { const m = p.textContent.match(/^(#{1,6})\s+([^\n]+)$/); if(m) { const h=document.createElement('h'+m[1].length); h.textContent=m[2]; p.replaceWith(h); } }
-  for(const pre of node.querySelectorAll('pre')) pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere';
+  node.style.cssText = 'box-sizing:border-box;width:700px;padding:32px;background:#fcf8f1;color:#38251d;font:16px/1.35 Georgia,serif;overflow-wrap:anywhere';
+  for (const block of markdownBlocks(source)) {
+    const p = document.createElement(block.type==='rule' ? 'hr' : block.level ? 'h'+Math.min(block.level,6) : block.quote ? 'blockquote' : 'p');
+    if (block.type==='space') continue;
+    if (block.marker) { p.style.paddingLeft = block.nested ? '10mm' : '5mm'; p.append(block.marker+' '); }
+    for (const run of inlineRuns(block.text || '')) {
+      let child = document.createTextNode(run.text);
+      if (run.italic) { const em=document.createElement('em'); em.append(child); child=em; }
+      if (run.bold) { const strong=document.createElement('strong'); strong.append(child); child=strong; }
+      p.append(child);
+    }
+    node.append(p);
+  }
   return node;
 }
 function check(signal) { if (signal?.aborted) throw new DOMException('Stopped','AbortError'); }
@@ -25,30 +77,50 @@ function textPdf(source, jsPDF, signal) {
   let y = margin;
   const paintPage = () => {
     pdf.setFillColor(252,248,241); pdf.rect(0,0,width,height,'F');
-    pdf.setTextColor(56,37,29); y = margin;
+    pdf.setTextColor(56,37,29); pdf.setDrawColor(56,37,29); pdf.setLineWidth(0.2); y = margin;
   };
+  const room = step => { check(signal); if(y+step>height-margin) { pdf.addPage(); paintPage(); } };
+  const font = run => pdf.setFont('times',run.bold ? (run.italic ? 'bolditalic' : 'bold') : run.italic ? 'italic' : 'normal');
   paintPage();
-  // Built-in Times keeps text selectable without embedding bulky font files.
-  for (const raw of source.replace(/\r\n?/g,'\n').split('\n')) {
+  // Built-in Times and real text operators keep output selectable and small.
+  for (const block of markdownBlocks(source)) {
     check(signal);
-    const line = raw.trim();
-    if (!line) { y += 3; continue; }
-    const heading = line.match(/^(#{1,3})\s+(.+)$/), bullet = line.match(/^[-*]\s+(.+)$/);
-    const size = heading ? [18,16,14][heading[1].length-1] : 11;
-    const indent = bullet ? 5 : 0, step = size * 0.352778 * 1.35;
-    const text = heading ? heading[2] : bullet ? bullet[1] : line;
-    pdf.setFont('times',heading ? 'bold' : 'normal'); pdf.setFontSize(size);
-    const lines = pdf.splitTextToSize(text,width-margin*2-indent);
-    if (heading && y > margin) y += 2;
-    for (let i=0; i<lines.length; i++) {
-      check(signal);
-      if (y + step > height-margin) { pdf.addPage(); paintPage(); }
-      // y is the top of a line box; put the baseline inside that box.
-      if (bullet && i===0) pdf.text('\u2022',margin+1,y+size*0.352778);
-      pdf.text(lines[i],margin+indent,y+size*0.352778);
-      y += step;
+    if (block.type==='space') { y+=3; continue; }
+    if (block.type==='rule') { room(7); y+=3; pdf.line(margin,y,width-margin,y); y+=4; continue; }
+    const size = block.level ? [18,16,14][Math.min(block.level,3)-1] : 11;
+    const step = size*0.352778*1.35, marker = block.marker || '';
+    pdf.setFontSize(size); pdf.setFont('times','normal');
+    const hanging = marker ? Math.max(5,pdf.getTextWidth(marker)+2) : 0;
+    const left = margin+(block.quote ? 5 : 0)+(block.nested ? 5 : 0);
+    const start = left+hanging, available = width-margin-start;
+    const lines = [[]]; let used = 0;
+    const next = () => { lines.push([]); used=0; };
+    const append = (text,run) => {
+      if (!text) return;
+      const row=lines[lines.length-1], prev=row[row.length-1];
+      if(prev && prev.bold===run.bold && prev.italic===run.italic) prev.text+=text;
+      else row.push({...run,text});
+      used+=pdf.getTextWidth(text);
+    };
+    for (const run of inlineRuns(block.text,!!block.level)) {
+      font(run);
+      for (const token of run.text.split(/(\s+)/).filter(Boolean)) {
+        if (/^\s+$/.test(token)) { if(used && used+pdf.getTextWidth(' ')<=available) append(' ',run); continue; }
+        if(used && used+pdf.getTextWidth(token)>available) next();
+        // splitTextToSize handles long tokens; exact run metrics govern mixed-style lines.
+        const pieces=pdf.splitTextToSize(token,available);
+        for(let i=0;i<pieces.length;i++) { if(i) next(); append(pieces[i],run); }
+      }
     }
-    y += heading ? 2 : 1;
+    if(block.level && y>margin) y+=2;
+    for(let i=0;i<lines.length;i++) {
+      room(step); const baseline=y+size*0.352778; let x=start;
+      if(marker && i===0) { pdf.setFont('times','normal'); pdf.text(marker,left+1,baseline); }
+      if(block.quote) pdf.line(left-3,y,left-3,y+step);
+      for(const run of lines[i]) { font(run); pdf.text(run.text,x,baseline); x+=pdf.getTextWidth(run.text); }
+      y+=step;
+    }
+    y+=block.level ? 2 : 1;
   }
   return pdf.output('blob');
 }
@@ -90,7 +162,14 @@ export async function documentReply(data, chat, signal, notice = () => {}) {
       blob = textPdf(source,jsPDF,signal);
     } else if(d.format==='docx') {
       const docx = await library('docx@8.5.0/build/index.umd.js','docx'); await library('file-saver@2.0.5/dist/FileSaver.min.js','saveAs'); check(signal);
-      const children = [...node.children].map(p => new docx.Paragraph({ text:p.textContent, ...( /^H[1-6]$/.test(p.tagName) ? {heading:docx.HeadingLevel['HEADING_'+p.tagName[1]]} : {}), spacing:{after:180} }));
+      const children = [...node.children].map(p => {
+        const runs = [], visit = (n,bold=false,italics=false) => {
+          if(n.nodeType===3) runs.push(new docx.TextRun({text:n.textContent,bold,italics}));
+          else for(const child of n.childNodes) visit(child,bold || n.nodeName==='STRONG',italics || n.nodeName==='EM');
+        };
+        visit(p);
+        return new docx.Paragraph({children:runs, ...( /^H[1-6]$/.test(p.tagName) ? {heading:docx.HeadingLevel['HEADING_'+p.tagName[1]]} : {}), spacing:{after:180} });
+      });
       blob = await docx.Packer.toBlob(new docx.Document({sections:[{children}]}));
     } else {
       const types = {md:'text/markdown',txt:'text/plain',html:'text/html',csv:'text/csv'};
@@ -104,4 +183,4 @@ export async function documentReply(data, chat, signal, notice = () => {}) {
     result.content=lead; result.document=file;
   } catch(e) { check(signal); notice((e.message || 'Could not create the file.')+' The document text is kept below.'); }
   return result;
-}
+  }
