@@ -32,9 +32,12 @@ export function setupChatActions(ghost, api) {
     const c = api.current(); close(); stopSharing(c, api.notice);
   });
   revoke.hidden = true;
-  const rename = row('Rename', '<path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/>', () => {
-    editor.hidden = false; name.value = api.current().customTitle || api.current().title || ''; name.focus(); name.select();
-  });
+  function openRename() {
+    const c = api.current(); if (c.temporary) return;
+    panel.hidden = false; more.setAttribute('aria-expanded', 'true');
+    editor.hidden = false; name.value = c.customTitle || c.title || ''; name.focus(); name.select();
+  }
+  const rename = row('Rename', '<path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/>', openRename);
   const editor = document.createElement('form'); editor.className = 'chat-rename'; editor.hidden = true;
   const name = document.createElement('input'); name.maxLength = 80; name.required = true; name.style.fontSize = '16px'; name.setAttribute('aria-label', 'Chat title');
   const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save title'; editor.append(name, save); panel.append(editor);
@@ -60,7 +63,7 @@ export function setupChatActions(ghost, api) {
   };
   document.addEventListener('click', e => { if (!wrap.contains(e.target)) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { close(); more.focus(); } });
-  return { update(c, busy) {
+  return { openRename, update(c, busy) {
     const active = c.messages.length > 0; wrap.classList.toggle('has-messages', active);
     ghost.inert = active; pill.inert = !active; fresh.disabled = more.disabled = busy;
     pin.hidden = rename.hidden = !!c.temporary;
