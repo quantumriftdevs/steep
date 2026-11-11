@@ -1,4 +1,5 @@
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
+const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
 const { prompt } = require('./personality'); const { projectPrompt, providerBody } = require('./project-context');
 
@@ -33,8 +34,11 @@ module.exports = async (req, res) => {
   const imageCount = messages.reduce((count, m) => count + (m.images?.length || 0), 0);
   if (imageCount > 3) return res.status(400).json({ error: 'Only 3 images can be sent per request.' });
   let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
-    const doc = documentIntent(messages);
-    if (doc) systemPrompt += documentInstruction(doc);
+    const candidate = pageIntent(messages), requestedDoc = documentIntent(messages);
+    const page = candidate && (!requestedDoc || candidate.explicit) ? candidate : null;
+    const doc = page ? null : requestedDoc;
+    if (page) systemPrompt += pageInstruction(page);
+    else if (doc) systemPrompt += documentInstruction(doc);
     else if (/\b(?:documents?|files?|pdf|docx|word\s+doc(?:ument)?|markdown|md|plain\s+text|txt|html|csv|formats?)\b/i.test([...messages].reverse().find(m => m.role === 'user')?.content || '')) {
       systemPrompt += '\n\nSteep can deliver documents as downloadable files in PDF, Word, Markdown, plain text, HTML and CSV when the user requests one; never claim inability to create files. If the user seems to want a document, invite them to request it explicitly (for example, "send it to me as a PDF"), while respecting any request not to create a file.';
     }
@@ -51,7 +55,9 @@ module.exports = async (req, res) => {
       });
       const reply = data.choices?.[0]?.message?.content;
       if (typeof reply !== 'string' || !reply.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
-      return res.status(200).json({ reply, provider: 'groq', ...(doc ? { documentIntent: true, documentFormat: doc.format, document: documentMetadata(doc, reply) } : {}), ...(web ? { research: { sources: web.sources } } : {}) });
+      const output = doc ? { reply } : pageResult(page, reply);
+      output.reply = stripFileData(output.reply);
+      return res.status(200).json({ ...output, provider: 'groq', ...(doc ? { documentIntent: true, documentFormat: doc.format, document: documentMetadata(doc, reply) } : {}), ...(web ? { research: { sources: web.sources } } : {}) });
     } catch (error) {
       return res.status(502).json({ error: 'Steep could not connect to the model. Try again.' });
     }
