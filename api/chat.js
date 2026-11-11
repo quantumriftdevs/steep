@@ -31,7 +31,12 @@ module.exports = async (req, res) => {
   const imageCount = messages.reduce((count, m) => count + (m.images?.length || 0), 0);
   if (imageCount > 3) return res.status(400).json({ error: 'Only 3 images can be sent per request.' });
   let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
-    const doc = documentIntent(messages); if (doc) systemPrompt += documentInstruction(doc); const controller = new AbortController(); res.on?.('close', () => { if (!res.writableEnded) controller.abort(); }); let web; try { web = await research(messages, userId, controller.signal); } catch (error) { if (controller.signal.aborted) return; return res.status(error.status || 503).json({ ...(error.code ? { code: error.code } : {}), error: error.status ? error.message : 'Web research is unavailable right now. Please try again shortly.' }); } if (web) systemPrompt += web.context; const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
+    const doc = documentIntent(messages);
+    if (doc) systemPrompt += documentInstruction(doc);
+    else if (/\b(?:documents?|files?|pdf|docx|word\s+doc(?:ument)?|markdown|md|plain\s+text|txt|html|csv|formats?)\b/i.test([...messages].reverse().find(m => m.role === 'user')?.content || '')) {
+      systemPrompt += '\n\nSteep can deliver documents as downloadable files in PDF, Word, Markdown, plain text, HTML and CSV when the user requests one; never claim inability to create files. If the user seems to want a document, invite them to request it explicitly (for example, "send it to me as a PDF"), while respecting any request not to create a file.';
+    }
+    const controller = new AbortController(); res.on?.('close', () => { if (!res.writableEnded) controller.abort(); }); let web; try { web = await research(messages, userId, controller.signal); } catch (error) { if (controller.signal.aborted) return; return res.status(error.status || 503).json({ ...(error.code ? { code: error.code } : {}), error: error.status ? error.message : 'Web research is unavailable right now. Please try again shortly.' }); } if (web) systemPrompt += web.context; const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
     try {
       const body = providerBody({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -44,7 +49,7 @@ module.exports = async (req, res) => {
       });
       const reply = data.choices?.[0]?.message?.content;
       if (typeof reply !== 'string' || !reply.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
-      return res.status(200).json({ reply, provider: 'groq', ...(doc ? { document: documentMetadata(doc, reply) } : {}), ...(web ? { research: { sources: web.sources } } : {}) });
+      return res.status(200).json({ reply, provider: 'groq', ...(doc ? { documentIntent: true, documentFormat: doc.format, document: documentMetadata(doc, reply) } : {}), ...(web ? { research: { sources: web.sources } } : {}) });
     } catch (error) {
       return res.status(502).json({ error: 'Steep could not connect to the model. Try again.' });
     }
