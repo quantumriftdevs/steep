@@ -51,7 +51,11 @@ function save() {
   if (current.temporary) return; chats = liveChats(chats); if (projectDeleted(current)) return;
   if (!saveChats(chats)) showError('This browser could not save your chats. They may disappear when you leave.');
 }
-function showError(text) { error.classList.remove('error--warning'); error.textContent = text; error.hidden = !text; }
+function showError(text, timeout = 0) {
+    clearTimeout(showError.timer);
+    error.classList.remove('error--warning'); error.textContent = text; error.hidden = !text;
+    if (timeout) showError.timer = setTimeout(() => showError(''), timeout);
+}
 let follow = true; thread.addEventListener('scroll', () => { follow = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80; }, { passive: true }); function scrollDown() { if (follow) thread.scrollTop = thread.scrollHeight; } function requestState(value) { busy = value; $('composer').classList.toggle('request-active', value); $('send').disabled = false; window.dispatchEvent(new CustomEvent('steep:request-state', { detail: value })); } $('send').addEventListener('click', e => { if (!busy) return; e.preventDefault(); e.stopImmediatePropagation(); stopRequest(); }, true);
 async function chatMenu(chat) { const run = fn => () => { if (!busy && chats.includes(chat)) fn(); }; const items = [{ label: chat.pinned ? 'Unpin' : 'Pin', icon: 'pin', run: run(() => { chat.pinned = !chat.pinned; if (!saveChats(chats)) showError('Could not save this pin.'); renderList(); }) }, { label: 'Share', icon: 'share', run: run(() => shareChat(chat, showError)) }, { label: 'Rename', icon: 'rename', run: run(() => { discardTemporary(); current = chat; enterProjectChat(chat); render(); document.querySelector('.chat-pill [aria-label="Chat options"]')?.click(); document.querySelector('.chat-options [aria-label="Rename"]')?.click(); }) }, { label: 'Delete', icon: 'delete', danger: true, run: run(() => { if (!confirm('Delete this chat? This cannot be undone.')) return; chats = chats.filter(c => c.id !== chat.id); if (current.id === chat.id) { current = newChat(); chats.unshift(current); enterProjectChat(current); } if (!saveChats(chats)) showError('Could not save this deletion.'); render(); }) }]; if (getSession()) { try { if (await activeShare(chat)) items.splice(2, 0, { label: 'Stop sharing', icon: 'stop', run: run(() => stopSharing(chat, showError)) }); } catch { showError('Sharing status is unavailable. Try Share again.'); } } return items; } function renderList() {
   const list = $('conversations'); list.replaceChildren();
@@ -113,7 +117,7 @@ $('composer').addEventListener('submit', async e => {
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-    const reply = await documentReply(data, active, controller.signal, showError); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
+    const reply = await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     const message = { role: 'assistant', ...reply }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
