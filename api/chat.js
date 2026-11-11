@@ -2,6 +2,8 @@ const { documentIntent, documentInstruction, documentMetadata } = require('./doc
 const { research } = require('./research');
 const { prompt } = require('./personality'); const { projectPrompt, providerBody } = require('./project-context');
 
+const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[attachment removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[attachment removed]');
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
@@ -38,7 +40,7 @@ module.exports = async (req, res) => {
     }
     const controller = new AbortController(); res.on?.('close', () => { if (!res.writableEnded) controller.abort(); }); let web; try { web = await research(messages, userId, controller.signal); } catch (error) { if (controller.signal.aborted) return; return res.status(error.status || 503).json({ ...(error.code ? { code: error.code } : {}), error: error.status ? error.message : 'Web research is unavailable right now. Please try again shortly.' }); } if (web) systemPrompt += web.context; const model = (imageCount ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b')).trim();
     try {
-      const body = providerBody({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.map(({ role, content, images }) => ({ role, content: images?.length ? [{ type: 'text', text: content }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : content }))] }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const body = providerBody({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages.map(({ role, content, images }) => { const cleanContent = stripFileData(content); return { role, content: images?.length ? [{ type: 'text', text: cleanContent }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))] : cleanContent }; })] }, isProject); if (body === null) return res.status(413).json({ error: 'Conversation and project context exceed the 3.5 MB payload limit.' }); const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
         body, signal: controller.signal });
