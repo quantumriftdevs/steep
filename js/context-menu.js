@@ -12,7 +12,7 @@ async function openMenu(row, items, x, y) {
     if (item.danger) b.className = 'context-danger';
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (paths[item.icon] || paths.pin) + '"/></svg>';
     const label = document.createElement('span'); label.textContent = item.label; b.append(label);
-    b.onclick = () => { closeMenu(); item.run(); }; menu.append(b);
+    b.onclick = e => { e.stopPropagation(); closeMenu(); item.run(); }; menu.append(b);
   });
   document.body.append(menu);
   const v = window.visualViewport, left = v?.offsetLeft || 0, top = v?.offsetTop || 0;
