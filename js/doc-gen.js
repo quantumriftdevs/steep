@@ -19,6 +19,39 @@ function documentNode(source) {
   return node;
 }
 function check(signal) { if (signal?.aborted) throw new DOMException('Stopped','AbortError'); }
+function textPdf(source, jsPDF, signal) {
+  const pdf = new jsPDF({unit:'mm',format:'letter',orientation:'portrait',compress:true,putOnlyUsedFonts:true});
+  const margin = 12, width = pdf.internal.pageSize.getWidth(), height = pdf.internal.pageSize.getHeight();
+  let y = margin;
+  const paintPage = () => {
+    pdf.setFillColor(252,248,241); pdf.rect(0,0,width,height,'F');
+    pdf.setTextColor(56,37,29); y = margin;
+  };
+  paintPage();
+  // Built-in Times keeps text selectable without embedding bulky font files.
+  for (const raw of source.replace(/\r\n?/g,'\n').split('\n')) {
+    check(signal);
+    const line = raw.trim();
+    if (!line) { y += 3; continue; }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/), bullet = line.match(/^[-*]\s+(.+)$/);
+    const size = heading ? [18,16,14][heading[1].length-1] : 11;
+    const indent = bullet ? 5 : 0, step = size * 0.352778 * 1.35;
+    const text = heading ? heading[2] : bullet ? bullet[1] : line;
+    pdf.setFont('times',heading ? 'bold' : 'normal'); pdf.setFontSize(size);
+    const lines = pdf.splitTextToSize(text,width-margin*2-indent);
+    if (heading && y > margin) y += 2;
+    for (let i=0; i<lines.length; i++) {
+      check(signal);
+      if (y + step > height-margin) { pdf.addPage(); paintPage(); }
+      // y is the top of a line box; put the baseline inside that box.
+      if (bullet && i===0) pdf.text('\u2022',margin+1,y+size*0.352778);
+      pdf.text(lines[i],margin+indent,y+size*0.352778);
+      y += step;
+    }
+    y += heading ? 2 : 1;
+  }
+  return pdf.output('blob');
+}
 export async function documentReply(data, chat, signal, notice = () => {}) {
   const result = { content: data.reply, ...(data.research ? { research: data.research } : {}) };
   const d = data.document;
@@ -38,8 +71,8 @@ export async function documentReply(data, chat, signal, notice = () => {}) {
   try {
     check(signal); let blob; const node = documentNode(source);
     if(d.format==='pdf') {
-      const pdf = await library('html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js','html2pdf'); check(signal);
-      blob = await pdf().set({ margin:12, filename:name+'.pdf', image:{type:'jpeg',quality:0.92}, html2canvas:{scale:1.4}, jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}, pagebreak:{mode:['css','legacy']} }).from(node).outputPdf('blob');
+      const { jsPDF } = await library('jspdf@2.5.2/dist/jspdf.umd.min.js','jspdf'); check(signal);
+      blob = textPdf(source,jsPDF,signal);
     } else if(d.format==='docx') {
       const docx = await library('docx@8.5.0/build/index.umd.js','docx'); await library('file-saver@2.0.5/dist/FileSaver.min.js','saveAs'); check(signal);
       const children = [...node.children].map(p => new docx.Paragraph({ text:p.textContent, ...( /^H[1-6]$/.test(p.tagName) ? {heading:docx.HeadingLevel['HEADING_'+p.tagName[1]]} : {}), spacing:{after:180} }));
