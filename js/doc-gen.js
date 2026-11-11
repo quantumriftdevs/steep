@@ -52,21 +52,36 @@ function textPdf(source, jsPDF, signal) {
   }
   return pdf.output('blob');
 }
+const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[file data removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[file data removed]');
+function fallbackText(reply) {
+  return reply.replace(/^[ \t]*<<<STEEP_DOCUMENT_[a-f0-9]{32}:(?:BEGIN|END)>>>[ \t]*$/gmi, '')
+    .replace(/^[ \t]*(?:filename:[^\n]*|(?:[-*]\s+)?(?:[\x60*_]+)?(?:\[[^\]\n]*\.(?:pdf|docx|md|txt|html|csv)\]\([^\n]*\)|[^\n\[\]<>]*\.(?:pdf|docx|md|txt|html|csv))(?:[\x60*_]+)?)[ \t]*$/gmi, '')
+    .replace(/\[file data removed\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+}
 export async function documentReply(data, chat, signal, notice = () => {}) {
-  const result = { content: data.reply, ...(data.research ? { research: data.research } : {}) };
-  const d = data.document;
+  const reply = stripFileData(typeof data.reply === 'string' ? data.reply : '');
+  const result = { content: reply, ...(data.research ? { research: data.research } : {}) };
+  if (!data.documentIntent && !data.document) return result;
+  const formats = ['pdf','docx','md','txt','html','csv'];
+  const format = data.document?.format || data.documentFormat || 'pdf';
+  const d = { ...data.document, format };
   const failed = () => notice("Steep couldn't format that reply as a document - try asking again");
-  if (!d || !['pdf','docx','md','txt','html','csv'].includes(d.format) || !/^STEEP_DOCUMENT_[a-f0-9]{32}$/.test(d.marker)) {
-    if (data.documentIntent || d) failed();
-    return result;
+  if (!formats.includes(format)) { failed(); return result; }
+  let source = '', lead = '', fallback = false;
+  if (/^STEEP_DOCUMENT_[a-f0-9]{32}$/.test(d.marker)) {
+    const begin = '<<<'+d.marker+':BEGIN>>>', end = '<<<'+d.marker+':END>>>';
+    const a = reply.indexOf(begin), b = reply.indexOf(end, a + begin.length);
+    if (a >= 0 && b >= 0) {
+      source = reply.slice(a+begin.length,b).trim().replace(/^filename:[^\n]*(?:\n|$)/i,'').trim();
+      lead = (reply.slice(0,a)+reply.slice(b+end.length)).trim() || 'Here is your document.';
+    }
   }
-  const begin = '<<<'+d.marker+':BEGIN>>>', end = '<<<'+d.marker+':END>>>';
-  const a = data.reply.indexOf(begin), b = data.reply.indexOf(end, a + begin.length);
-  if(a<0 || b<0) { failed(); return result; }
-    const source = data.reply.slice(a+begin.length,b).trim().replace(/^filename:[^\n]*(?:\n|$)/i,'').trim();
-  if (!source) { failed(); return result; }
-  const lead = (data.reply.slice(0,a)+data.reply.slice(b+end.length)).trim() || 'Here is your document.';
-  result.content = lead+'\n\n'+source;
+  if (!source.replace(/\[file data removed\]/g, '').trim()) {
+    source = fallbackText(reply); result.content = source; fallback = true;
+    if (source.replace(/\s/g, '').length <= 200) { failed(); return result; }
+    lead = source;
+  }
+  result.content = fallback ? source : lead+'\n\n'+source;
   const name = String(d.filename || 'steep-document').replace(/\.[^.]+$/,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,80) || 'steep-document';
   try {
     check(signal); let blob; const node = documentNode(source);
