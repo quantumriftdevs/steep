@@ -1,10 +1,28 @@
-const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible } = require('./task-intent');
+const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue } = require('./task-intent');
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
 const { prompt } = require('./personality'); const { projectPrompt, providerBody } = require('./project-context');
 
 const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[attachment removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[attachment removed]');
+
+
+// Normal conversation is text, not a page-generation result. Never use pageResult's
+// preview-error fallback here: retain useful text even if the model emits tags.
+function sanitizeChatReply(reply) {
+  return reply.replace(/<{2,3}STEEP[_-]PAGE[^>\r\n]*>{2,3}/gi, '')
+    .replace(/<![^>]*>|<\/?[a-z][^>]*>/gi, '').trim();
+}
+function chooseTaskDue(text, modelDue, now = Date.now()) {
+  const parsed = parseDue(text, now);
+  if (parsed) return parsed;
+  const due = validDue(modelDue);
+  if (!due) return null;
+  const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const mentioned = [...text.toLowerCase().matchAll(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/g)].map(m => weekdays.indexOf(m[1]));
+  const day = new Date(Date.parse(due) + 3600000).getUTCDay();
+  return mentioned.some(expected => expected !== day) ? null : due;
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -68,7 +86,12 @@ module.exports = async (req, res) => {
       if (typeof reply !== 'string' || !reply.trim()) return res.status(502).json({ error: 'Steep did not receive a text response. Try again.' });
       const normalTaskOutput = !page && !doc && !task ? taskSuggestionResult(reply, taskMarks) : null;
       if (normalTaskOutput && !suggest) delete normalTaskOutput.taskSuggest;
-      if (normalTaskOutput) normalTaskOutput.reply = pageResult(null, normalTaskOutput.reply).reply; const output = task?.type === 'add' ? taskAddResult(reply, taskMarks) : normalTaskOutput || (doc ? { reply } : pageResult(page, reply)); if (page && output.pageIntent) { const reviewController = new AbortController(); const abortReview = () => reviewController.abort(); const reviewTimer = setTimeout(abortReview, 20000); controller.signal.addEventListener('abort', abortReview, { once: true }); try { if (controller.signal.aborted) abortReview(); const critique = 'You are reviewing a web page you just built. Check it strictly: 1) At 390px wide there is no horizontal scrolling, nothing overlaps or looks cramped. 2) Clear type hierarchy: one dominant headline, readable body text. 3) Spacing is consistent with generous whitespace. 4) Colors are coherent with readable contrast. 5) All content is real and complete - zero placeholders. 6) Every interactive element works. 7) No external resources anywhere. 8) The HTML is complete and valid. If ANY check fails, fix every failure and output the full corrected page. If all pass, output the page unchanged. Output only the page.'; const reviewBody = providerBody({ model, messages: [{ role: 'system', content: critique + ' Preserve the inline-only sandbox rules: no imports, frames, dependencies, localStorage, cookies, alert, eval or external form submission. Preserve accessible labels, keyboard controls and focus states. Keep total output under 60,000 characters.' }, { role: 'user', content: output.pageHtml }] }, isProject); if (reviewBody !== null) { const reviewed = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` }, body: reviewBody, signal: reviewController.signal }); if (reviewed.ok) { const reviewData = await reviewed.json(); const revised = reviewData?.choices?.[0]?.message?.content; if (typeof revised === 'string' && revised.trim()) { /* Validate page-only output with the existing randomized scaffold. */ const result = pageResult(page, ['<<<' + page.marker + ':BEGIN>>>', revised.trim(), '<<<' + page.marker + ':END>>>'].join(String.fromCharCode(10))); if (result.pageIntent && result.pageHtml.length < 60000) output.pageHtml = result.pageHtml; } } } } catch (_) { /* Best-effort review: keep the successful first draft. */ } finally { clearTimeout(reviewTimer); controller.signal.removeEventListener('abort', abortReview); } }
+      if (normalTaskOutput) normalTaskOutput.reply = sanitizeChatReply(normalTaskOutput.reply); const output = task?.type === 'add' ? taskAddResult(reply, taskMarks) : normalTaskOutput || (doc ? { reply } : page ? pageResult(page, reply) : { reply: sanitizeChatReply(reply) });
+      const latestUserText = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+      const dueNow = Date.now();
+      if (output.taskIntent === 'add') output.taskDue = chooseTaskDue(latestUserText, output.taskDue, dueNow);
+      if (output.taskSuggest) output.taskSuggest.due = chooseTaskDue(latestUserText, output.taskSuggest.due, dueNow);
+      if (page && output.pageIntent) { const reviewController = new AbortController(); const abortReview = () => reviewController.abort(); const reviewTimer = setTimeout(abortReview, 20000); controller.signal.addEventListener('abort', abortReview, { once: true }); try { if (controller.signal.aborted) abortReview(); const critique = 'You are reviewing a web page you just built. Check it strictly: 1) At 390px wide there is no horizontal scrolling, nothing overlaps or looks cramped. 2) Clear type hierarchy: one dominant headline, readable body text. 3) Spacing is consistent with generous whitespace. 4) Colors are coherent with readable contrast. 5) All content is real and complete - zero placeholders. 6) Every interactive element works. 7) No external resources anywhere. 8) The HTML is complete and valid. If ANY check fails, fix every failure and output the full corrected page. If all pass, output the page unchanged. Output only the page.'; const reviewBody = providerBody({ model, messages: [{ role: 'system', content: critique + ' Preserve the inline-only sandbox rules: no imports, frames, dependencies, localStorage, cookies, alert, eval or external form submission. Preserve accessible labels, keyboard controls and focus states. Keep total output under 60,000 characters.' }, { role: 'user', content: output.pageHtml }] }, isProject); if (reviewBody !== null) { const reviewed = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` }, body: reviewBody, signal: reviewController.signal }); if (reviewed.ok) { const reviewData = await reviewed.json(); const revised = reviewData?.choices?.[0]?.message?.content; if (typeof revised === 'string' && revised.trim()) { /* Validate page-only output with the existing randomized scaffold. */ const result = pageResult(page, ['<<<' + page.marker + ':BEGIN>>>', revised.trim(), '<<<' + page.marker + ':END>>>'].join(String.fromCharCode(10))); if (result.pageIntent && result.pageHtml.length < 60000) output.pageHtml = result.pageHtml; } } } } catch (_) { /* Best-effort review: keep the successful first draft. */ } finally { clearTimeout(reviewTimer); controller.signal.removeEventListener('abort', abortReview); } }
       output.reply = stripFileData(output.reply);
       return res.status(200).json({ ...output, provider: 'groq', ...(doc ? { documentIntent: true, documentFormat: doc.format, document: documentMetadata(doc, reply) } : {}), ...(web ? { research: { sources: web.sources } } : {}) });
     } catch (error) {

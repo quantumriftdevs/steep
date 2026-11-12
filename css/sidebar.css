@@ -19,3 +19,10 @@
 #conversations .sidebar-rename input:focus,#conversations .sidebar-rename input:focus-visible{outline:none;box-shadow:none;border-color:var(--line)}
 .sidebar #conversations .sidebar-rename button{display:block;width:100%;margin:0;border:0;border-radius:10px;background:var(--ink);color:var(--cream);font:16px 'Hanken Grotesk',sans-serif;text-align:center;padding:10px 12px}
 .sidebar #conversations .sidebar-rename button:hover{background:var(--dark)}
+
+/* Recents and Projects reuse #conversations on their respective tabs. Only this
+   middle region scrolls; its flex children must never shrink to fit long lists. */
+.sidebar{min-height:0;overflow:hidden}
+.sidebar>.side-top,.sidebar>.side-nav,.sidebar>.project-selectors,.sidebar>.side-label,.sidebar>.side-bottom{flex-shrink:0}
+.sidebar>#conversations{flex:1 1 0;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+.sidebar>#conversations>*{flex-shrink:0}

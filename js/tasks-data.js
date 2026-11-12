@@ -85,7 +85,8 @@ export function editTask(id, input) {
 }
 export function deleteTask(id) {
   return mutate(async (user, generation) => {
-    await request(user, generation, 'id=eq.' + encodeURIComponent(id) + '&user_id=eq.' + encodeURIComponent(user), 'DELETE');
+    const deleted = await request(user, generation, 'id=eq.' + encodeURIComponent(id) + '&user_id=eq.' + encodeURIComponent(user), 'DELETE');
+    if (!deleted[0]) throw Error('That task is no longer available. Refresh Tasks to check it.');
     rows = rows.filter(t => t.id !== id); ++readVersion; emit();
   });
 }

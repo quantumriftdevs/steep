@@ -1,8 +1,9 @@
 /* Scoped generated-file cards; no shell, drawer, header or sidebar rules. */
-.document-card{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0;padding:16px;border:1px solid #ded4c4;border-radius:16px;background:#fffaf0;color:#29251f;max-width:100%;box-sizing:border-box;font:inherit}
-.document-card .document-format{display:grid;place-items:center;min-width:44px;min-height:48px;padding:4px;background:#eee3d1;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.04em}
+.document-card{display:flex;align-items:center;flex-wrap:wrap;box-sizing:border-box;gap:.65rem;width:min(100%,26rem);min-width:0;margin:1rem 0;padding:1.15rem;border:1px solid var(--panel-edge,var(--line));border-radius:18px;background:var(--glass,var(--cream));color:var(--ink);box-shadow:0 4px 20px color-mix(in srgb,var(--ink) 3%,transparent);font-size:16px;line-height:1.5;overflow-wrap:anywhere;-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.document-card .document-format{display:grid;place-items:center;min-width:44px;min-height:48px;padding:8px;background:var(--pale);color:var(--ink);border:1px solid var(--panel-edge,var(--line));border-radius:12px;font-size:16px;font-weight:700;letter-spacing:.04em}
 .document-card>div{flex:1 1 150px;min-width:0}
-.document-card strong{display:block;overflow-wrap:anywhere;font-size:15px}
-.document-card>div>span{display:block;font-size:12px;color:#766b5d;margin-top:4px}
-.document-card button,.document-card a{font:inherit;font-size:14px;color:#55432c;background:transparent;border:0;padding:8px 4px;text-decoration:underline;cursor:pointer;box-shadow:none;outline:none}
-.document-card button:hover,.document-card a:hover{text-decoration-thickness:2px}
+.document-card strong{display:block;margin:0;font:700 1.15rem/1.3 system-ui,sans-serif;overflow-wrap:anywhere}
+.document-card>div>span{display:block;font-size:16px;color:var(--muted);margin-top:.65rem}
+.document-card button,.document-card a{box-sizing:border-box;min-height:44px;padding:.65rem 1.1rem;border:1px solid var(--panel-edge,var(--ink));border-radius:999px;background:var(--button-surface,var(--ink));color:var(--button-ink,var(--cream));font:600 16px/1.2 system-ui,sans-serif;text-decoration:none;cursor:pointer;outline:none;box-shadow:none}
+.document-card button:hover,.document-card a:hover{background:var(--control,var(--dark));color:var(--button-ink,var(--cream))}
+.document-card button:focus,.document-card a:focus,.document-card button:focus-visible,.document-card a:focus-visible{outline:none;box-shadow:none}

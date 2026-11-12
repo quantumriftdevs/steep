@@ -52,7 +52,7 @@ async function run() {
     let result;
     if (options.method === 'POST') { result = [{...body,created_at:'2026-11-12T00:00:00Z'}]; rows.push(result[0]); }
     else if (options.method === 'PATCH') { rows = rows.map(t => t.id === id ? {...t,...body} : t); result = rows.filter(t=>t.id===id); }
-    else if (options.method === 'DELETE') { rows = rows.filter(t=>t.id!==id); result=[]; }
+    else if (options.method === 'DELETE') { result=rows.filter(t=>t.id===id); rows = rows.filter(t=>t.id!==id); }
     else result=rows.slice(Number(query.get('offset') || 0),Number(query.get('offset') || 0)+500);
     return {ok:true,status:200,json:async()=>JSON.parse(JSON.stringify(result))};
   };
@@ -89,6 +89,8 @@ async function run() {
     else equal(output.taskIntent,expected);
   }
   console.log('PASS: '+checks+' assertions; '+fixtures.length+' intent fixtures; no live model calls.');
+  await require('./round.test')();
+  require('./doc-intent.test')();
   return checks;
 }
 module.exports=run;

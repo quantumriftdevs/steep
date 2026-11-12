@@ -43,13 +43,67 @@ exports.taskAddResult = (reply, protocol) => {
   const result = block(reply, protocol), name = title(result.data?.title);
   if (!name) return { reply: "I couldn't prepare that task. Please try again with a short task title." };
   const notes = typeof result.data.notes === 'string' ? [...result.data.notes.trim()].slice(0,2000).join('') : null;
-  return { taskIntent: 'add', taskTitle: name, taskNotes: notes || null, taskDue: exports.validDue(result.data.due), reply: 'Ready to add: ' + name + '.' };
+  return { taskIntent: 'add', taskTitle: name, taskNotes: notes || null, taskDue: exports.validDue(result.data.due), reply: "I couldn't save that task - please try again." };
 };
 exports.taskSuggestionResult = (reply, protocol) => {
   const result = block(reply, protocol), name = title(result.data?.title);
   return { reply: result.reply || 'What would you like to work on next?', ...(name ? { taskSuggest: { title: name, due: exports.validDue(result.data.due) } } : {}) };
 };
 exports.taskSuggestionEligible = messages => {
-  const text = latest(messages).trim();
-  return !/[?]/.test(text) && /\b(?:I'll|I’ll|I will|I need to|I must|I'm going to|I’m going to)\s+\w/i.test(text) && !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(text);
+  const text = latest(messages).replace(/[‘’]/g, "'").trim();
+  // Bare capital-I forms are a defensive safety net, never case-insensitive.
+  const commitment = /\b(?:I'll|I will|I need to|I must|I'm going to)\s+\w/i.test(text) || /\bIll\s+\w/.test(text) || /\bIm\s+\w/.test(text);
+  return !/[?]/.test(text) && commitment && !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(text);
+};
+
+// Lagos has a fixed UTC+01:00 offset. UTC getters below represent Lagos wall time,
+// not the host timezone. Unqualified days use 09:00; tonight uses 20:00.
+exports.parseDue = (text, now = Date.now()) => {
+  if (typeof text !== 'string') return null;
+  const instant = new Date(now).getTime(), hourMs = 3600000, dayMs = 86400000;
+  if (!Number.isFinite(instant)) return null;
+  const wallNow = instant + hourMs, local = new Date(wallNow), raw = text.toLowerCase();
+  const midnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+  const format = wall => Number.isFinite(new Date(wall).getTime()) ? new Date(wall).toISOString().slice(0,19) + '+01:00' : null;
+  const time = raw.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/) || raw.match(/\b(\d{1,2}):(\d{2})\b/) || raw.match(/\b(?:at|by)\s+(\d{1,2})\b/);
+  let hour = /\btonight\b/.test(raw) ? 20 : 9, minute = 0;
+  if (time) {
+    hour = Number(time[1]); minute = Number(time[2] || 0);
+    if (minute > 59 || (time[3] ? hour < 1 || hour > 12 : hour > 23)) return null;
+    if (time[3]) hour = hour % 12 + (time[3] === 'pm' ? 12 : 0);
+  }
+  const clock = hour * hourMs + minute * 60000;
+  const relative = raw.match(/\bin\s+(\d+)\s+(days?|hours?|weeks?)\b/);
+  if (relative) {
+    const n = Number(relative[1]), unit = relative[2];
+    if (!Number.isSafeInteger(n) || n > 36500) return null;
+    // Hours are elapsed time; days/weeks are calendar dates at the chosen clock.
+    return format(unit.startsWith('hour') ? wallNow + n * hourMs : midnight + n * dayMs * (unit.startsWith('week') ? 7 : 1) + clock);
+  }
+  const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const weekday = raw.match(/\b(next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+  if (weekday) {
+    let delta = (weekdays.indexOf(weekday[2]) - local.getUTCDay() + 7) % 7;
+    if (midnight + delta * dayMs + clock < wallNow) delta += 7;
+    // 'next Friday' is one week AFTER the nearest still-upcoming Friday.
+    if (weekday[1]) delta += 7;
+    return format(midnight + delta * dayMs + clock);
+  }
+  if (/\bnext\s+week\b/.test(raw)) return format(midnight + ((8-local.getUTCDay()) % 7 || 7) * dayMs + clock);
+  if (/\btomorrow\b/.test(raw)) return format(midnight + dayMs + clock);
+  if (/\b(today|tonight)\b/.test(raw)) return format(midnight + clock);
+  const months = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+  const md = raw.match(new RegExp('\\b('+months+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b'));
+  const dm = !md && raw.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+('+months+')\\.?(?:,?\\s+(\\d{4}))?\\b'));
+  if (md || dm) {
+    const m = md || dm, name = md ? m[1] : m[2], day = Number(md ? m[2] : m[1]);
+    const month = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(name.slice(0,3));
+    let year = Number(m[3] || local.getUTCFullYear());
+    if (!m[3] && Date.UTC(year,month,day) + clock < wallNow) year++;
+    if (day < 1 || day > new Date(Date.UTC(year,month+1,0)).getUTCDate()) return null;
+    return format(Date.UTC(year,month,day) + clock);
+  }
+  // A time without a date means its next occurrence (today or tomorrow).
+  if (time) return format(midnight + clock + (midnight + clock < wallNow ? dayMs : 0));
+  return null;
 };
