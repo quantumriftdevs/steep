@@ -11,6 +11,7 @@
 .tasks-form{padding:20px;margin:18px 0 26px;border:1px solid var(--line);border-radius:20px;background:var(--paper)}
 .tasks-form label{display:block;margin:12px 0;font-size:14px}
 .tasks-form input,.tasks-form textarea{display:block;box-sizing:border-box;width:100%;min-width:0;margin-top:7px;padding:12px;font:inherit;font-size:16px;color:var(--ink);background:var(--cream);border:1px solid var(--line);border-radius:12px;outline:0;box-shadow:none;resize:vertical}
+.tasks-form input[type="datetime-local"]{width:100%;max-width:100%;box-sizing:border-box;min-width:0;color-scheme:inherit;appearance:none;-webkit-appearance:none;padding:12px;font-size:16px;border:1px solid var(--line);border-radius:12px;outline:0;box-shadow:none}
 .tasks-form input:focus,.tasks-form textarea:focus,.tasks-form input:focus-visible,.tasks-form textarea:focus-visible{outline:0;box-shadow:none;border-color:var(--line)}
 .tasks-form button+button{margin-left:8px}
 .tasks-status{color:var(--ink);font-size:14px;overflow-wrap:anywhere}

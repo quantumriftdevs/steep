@@ -12,7 +12,7 @@ exports.taskIntent = (messages, blocked = false) => {
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'complete', phrase } : null; }
   match = text.match(/^(?:remove|delete)\s+(.+?)\s+from my (?:list|tasks)$/i);
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'delete', phrase } : null; }
-  match = text.match(/^remind me to\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
+  match = text.match(/^(?:remind me (?:to|about|of)|set a reminder for)\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
   if (match && finish(match[1])) return { type: 'add', phrase: finish(match[1]) };
   return null;
 };
@@ -49,11 +49,12 @@ exports.taskSuggestionResult = (reply, protocol) => {
   const result = block(reply, protocol), name = title(result.data?.title);
   return { reply: result.reply || 'What would you like to work on next?', ...(name ? { taskSuggest: { title: name, due: exports.validDue(result.data.due) } } : {}) };
 };
-exports.taskSuggestionEligible = messages => {
+exports.taskSuggestionEligible = (messages, now = Date.now()) => {
   const text = latest(messages).replace(/[‘’]/g, "'").trim();
   // Bare capital-I forms are a defensive safety net, never case-insensitive.
   const commitment = /\b(?:I'll|I will|I need to|I must|I'm going to)\s+\w/i.test(text) || /\bIll\s+\w/.test(text) || /\bIm\s+\w/.test(text);
-  return !/[?]/.test(text) && commitment && !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(text);
+  const eventWithDue = /\b(?:meeting|appointment|call|interview|exam|deadline|flight|class|session|date)\b/i.test(text) && exports.parseDue(text, now) !== null;
+  return !/[?]/.test(text) && (commitment || eventWithDue) && !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(text);
 };
 
 // Lagos has a fixed UTC+01:00 offset. UTC getters below represent Lagos wall time,
@@ -71,6 +72,8 @@ exports.parseDue = (text, now = Date.now()) => {
     hour = Number(time[1]); minute = Number(time[2] || 0);
     if (minute > 59 || (time[3] ? hour < 1 || hour > 12 : hour > 23)) return null;
     if (time[3]) hour = hour % 12 + (time[3] === 'pm' ? 12 : 0);
+    // Bare at/by 1-7 means afternoon; explicit AM/PM and 24-hour clocks stay exact.
+    else if (/^(?:at|by)\s/i.test(time[0]) && hour >= 1 && hour <= 7) hour += 12;
   }
   const clock = hour * hourMs + minute * 60000;
   const relative = raw.match(/\bin\s+(\d+)\s+(days?|hours?|weeks?)\b/);
