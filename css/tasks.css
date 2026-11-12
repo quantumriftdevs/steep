@@ -1,0 +1,27 @@
+/* Scoped additions only. Existing sidebar/drawer/header rules remain untouched. */
+#tasks-tab .tasks-badge{margin-left:auto;flex:none;background:var(--dark);color:var(--paper);font-size:11px;line-height:1.4;border-radius:999px;padding:1px 7px;min-width:22px;text-align:center}
+#tasks-tab .tasks-badge[hidden]{display:none}
+.tasks-view{color:var(--ink);padding-top:8px}
+.tasks-view h1{font:700 28px 'Bricolage Grotesque',sans-serif;letter-spacing:-.04em;margin:0 0 8px}
+.tasks-view h2{font-size:16px;margin:0 0 12px}
+.tasks-hint,.tasks-view small,.task-chat-card small{color:var(--muted);font-size:13px}
+.tasks-view button,.task-chat-card button{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:9px 13px;min-height:44px;cursor:pointer}
+.tasks-view button:hover,.task-chat-card button:hover{background:var(--pale)}
+.tasks-view button:disabled,.task-chat-card button:disabled{opacity:.5;cursor:default}
+.tasks-form{padding:20px;margin:18px 0 26px;border:1px solid var(--line);border-radius:20px;background:var(--paper)}
+.tasks-form label{display:block;margin:12px 0;font-size:14px}
+.tasks-form input,.tasks-form textarea{display:block;box-sizing:border-box;width:100%;min-width:0;margin-top:7px;padding:12px;font:inherit;font-size:16px;color:var(--ink);background:var(--cream);border:1px solid var(--line);border-radius:12px;outline:0;box-shadow:none;resize:vertical}
+.tasks-form input:focus,.tasks-form textarea:focus,.tasks-form input:focus-visible,.tasks-form textarea:focus-visible{outline:0;box-shadow:none;border-color:var(--line)}
+.tasks-form button+button{margin-left:8px}
+.tasks-status{color:var(--ink);font-size:14px;overflow-wrap:anywhere}
+.tasks-group{margin:24px 0}.tasks-group summary{cursor:pointer;font-weight:700;min-height:44px;padding:10px 0}
+.task-row{padding:14px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.tasks-view .task-toggle{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;border:0;background:transparent;padding:8px 0}
+.task-toggle[aria-pressed=true] .task-title{text-decoration:line-through;color:var(--muted)}
+.task-check{flex:none;font-size:20px;line-height:1.2}.task-title{min-width:0;overflow-wrap:anywhere}
+.task-details{padding-left:30px}.task-details p{white-space:pre-wrap;font-size:14px;margin:8px 0;color:var(--muted)}
+.task-controls{display:flex;gap:8px;margin-top:10px;padding-left:30px}
+.task-chat-card{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--paper);font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.task-chat-card strong,.task-chat-card>span,.task-chat-card small{display:block;margin-bottom:7px}
+.task-chat-card button+button{margin-left:8px}.task-chat-card[hidden]{display:none}
+@media(max-width:480px){.tasks-form{padding:15px}.task-controls{padding-left:0}}
