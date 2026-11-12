@@ -1,3 +1,4 @@
+import { setupTasks, taskReply, taskCard } from './tasks.js';
 import { pageReply, pageCard } from './page-view.js';
 import { documentReply } from './doc-gen.js'; import { markFreshImages } from './image-gen.js';
 import { getSession, logout } from './auth.js'; import { modelRequest, beginRequest, finishRequest, stopRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
@@ -27,7 +28,7 @@ const actions = setupChatActions(ghost, {
     save(); render(); input.focus();
   }
 });
-const projects = setupProjects({ current: () => current, chats: () => liveChats(chats), busy: () => busy, notice: showError, closeMenu: () => menu(false), refresh: () => busy ? renderList() : render(), normal: () => { if (current.projectId) { discardTemporary(); current = newChat(); chats.unshift(current); input.value = ''; } showError(''); render(); }, select: chat => { if (busy || projectDeleted(chat)) return; discardTemporary(); current = chat; enterProjectChat(chat); showError(''); menu(false); render(); }, start: (id, preserve = false) => { if (busy) return; if (!preserve) { discardTemporary(); input.value = ''; } current = tagProjectChat(newChat(), id); chats.unshift(current); enterProjectChat(current); showError(''); menu(false); save(); render(); if (!preserve) input.focus(); }, prune: () => { const next = liveChats(chats), changed = next.length !== chats.length; chats = next; if (projectDeleted(current)) { discardTemporary(); current = newChat(); chats.unshift(current); leaveProjects(); input.value = ''; } if (changed) save(); } }); function discardTemporary() { clearAttachment();
+const projects = setupProjects({ current: () => current, chats: () => liveChats(chats), busy: () => busy, notice: showError, closeMenu: () => menu(false), refresh: () => busy ? renderList() : render(), normal: () => { if (current.projectId) { discardTemporary(); current = newChat(); chats.unshift(current); input.value = ''; } showError(''); render(); }, select: chat => { if (busy || projectDeleted(chat)) return; discardTemporary(); current = chat; enterProjectChat(chat); showError(''); menu(false); render(); }, start: (id, preserve = false) => { if (busy) return; if (!preserve) { discardTemporary(); input.value = ''; } current = tagProjectChat(newChat(), id); chats.unshift(current); enterProjectChat(current); showError(''); menu(false); save(); render(); if (!preserve) input.focus(); }, prune: () => { const next = liveChats(chats), changed = next.length !== chats.length; chats = next; if (projectDeleted(current)) { discardTemporary(); current = newChat(); chats.unshift(current); leaveProjects(); input.value = ''; } if (changed) save(); } }); const tasks = setupTasks({ busy: () => busy, notice: showError, closeMenu: () => menu(false), refresh: () => render() }); function discardTemporary() { clearAttachment();
   if (current.temporary) { current.messages.length = 0; input.value = ''; }
 }
 ghost.onclick = () => {
@@ -73,10 +74,10 @@ async function chatMenu(chat) { const run = fn => () => { if (busy || !chats.inc
   ghost.disabled = busy && !current.temporary;
   const temporary = !!current.temporary;
   document.querySelector('.topbar').classList.toggle('ghost-mode', temporary); ghostTitle.hidden = !temporary;
-  actions.update(temporary || projectNav.overview ? { ...current, messages: [] } : current, busy);
+  tasks.update(); actions.update(temporary || projectNav.overview || projectNav.tab === 'tasks' ? { ...current, messages: [] } : current, busy);
 }
 function render(welcome = false) {
-  const top = thread.scrollTop, following = follow; stopSpeech(); renderList(); messages.replaceChildren(); if (projects.render(messages)) { messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top; return; }
+  const top = thread.scrollTop, following = follow; stopSpeech(); renderList(); messages.replaceChildren(); if (tasks.render(messages) || projects.render(messages)) { messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top; return; }
   if (current.temporary && !current.messages.length) {
     messages.append(ghostEmpty());
   } else if (!current.messages.length) {
@@ -90,7 +91,7 @@ function render(welcome = false) {
     m.id ||= current.id + '-message-' + index;
     const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
     if (m.role === 'assistant' && m.pageIntent) body.append(pageCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError));
-    if (m.role === 'assistant') responseActions(body, m, {
+    if (m.role === 'assistant') { const card = taskCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError); if (card) body.append(card); }     if (m.role === 'assistant') responseActions(body, m, {
       current: () => current, busy: () => busy, save, notice: showError,
       adopt: chat => { current = chat; chats = chats.filter(c => c.id !== chat.id); chats.unshift(chat); enterProjectChat(chat); save(); }, lock: value => { requestState(value); lockAttachment(value); render(); }
     });
@@ -119,9 +120,9 @@ $('composer').addEventListener('submit', async e => {
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-    const reply = (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
+    const reply = (await taskReply(data, () => !controller.signal.aborted && current === active && !projectDeleted(active) && getSession()?.user?.id === owner)) || (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
-    const message = { role: 'assistant', ...reply }; current.messages.push(message); markFreshImages(message); save();
+    const message = { role: 'assistant', ...reply, ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     // Keep the sent message locally even when the model/network is unavailable.
