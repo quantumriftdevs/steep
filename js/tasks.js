@@ -121,7 +121,7 @@ export async function taskReply(data, isCurrent = () => true) {
   return null;
 }
 export function taskCard(message, save, notice) {
-  if (!message.taskAdded && !message.taskSuggest && !message.taskDue && !message.taskDigest) return null;
+  if (!message.taskAdded && !message.taskSuggest && !message.taskDigest) return null;
   const card = node('div', '', 'task-chat-card'); let busy = false;
   const user = getSession()?.user?.id;
   const valid = () => !user || getSession()?.user?.id === user;
@@ -134,19 +134,6 @@ export function taskCard(message, save, notice) {
     if (message.taskDigest) {
       card.append(node('strong', message.taskDigest.title));
       card.append(node('span', message.taskDigest.items.join(' · ')));
-    } else if (message.taskDue) {
-      const due = message.taskDue;
-      card.append(node('strong', 'Reminder: ' + due.title), node('small', taskDueLabel(due.due)));
-      if (due.finished) { card.append(node('span', due.finished)); return; }
-      const change = action => run(async () => {
-        const rows = await refreshTasks(), task = rows.find(t => t.id === due.id);
-        if (!task || task.status !== 'open' || Date.parse(task.due_at) !== Date.parse(due.due)) { due.finished = 'This reminder has already changed.'; return; }
-        const next = await editTask(task.id, typeof action === 'function' ? action() : action);
-        due.finished = next.status === 'done' ? 'Done' : 'Next: ' + taskDueLabel(next.due_at);
-      });
-      for (const [label,action] of [['Done',{status:'done'}],['Snooze 1 hour',() => ({due_at:new Date(Date.now()+3600000).toISOString()})],['Snooze tomorrow 9am',() => ({due_at:tomorrowNine()})]]) {
-        const b = button(label, change(action)); b.disabled = busy; card.append(b);
-      }
     } else if (message.taskAdded) {
       const task = message.taskAdded; card.append(node('strong','Task added: ' + task.title), node('small',taskDueLabel(task.due)));
       const undo = button('Undo', run(async () => { await deleteTask(task.id); message.taskAdded = null; message.taskSuggest = null; })); undo.disabled = busy; card.append(undo);
@@ -165,37 +152,147 @@ export function taskCard(message, save, notice) {
   draw(); return card;
 }
 
+// Due-event state is deliberately separate from legacy one-shot due-card history.
+export const REMINDER_MS = 5 * 60000;
+export function reminderCopy(title, count = 0) {
+  const phrases = ["It's time: ", "Here's that reminder again: ", "A gentle nudge: ", "Whenever you're ready: "];
+  return phrases[count % phrases.length] + title;
+}
+export function dueQueue(rows, state = {}, now = Date.now()) {
+  return dueTasks(rows, {}, now).filter(task => {
+    const event = state[surfaceKey(task)];
+    return !event?.acknowledged && (!event || now >= (event.nextAt || event.lastShown + REMINDER_MS));
+  });
+}
+// Injectable clock/storage/view make the lifecycle testable without a browser or network.
+export function createDueBanners(io) {
+  let account = null, state = {}, active = null, wake = null, disposed = false, cooling = false;
+  const later = io.setTimeout || setTimeout, cancel = io.clearTimeout || clearTimeout;
+  const now = io.now || Date.now;
+  const persist = () => io.write('steep:due-banner:' + account, state);
+  function reset(user) {
+    cancel(wake); wake = null; active?.view.remove(); active = null; cooling = false;
+    account = user; const saved = user ? io.read('steep:due-banner:' + user) : null;
+    state = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  }
+  function current(item) {
+    return account && io.user() === account && io.rows().some(t => t.status === 'open' && surfaceKey(t) === item.key);
+  }
+  function finish(item, delay = 0, swiped = false) {
+    if (active !== item) return;
+    cooling = true;
+    const leave = () => {
+      if (active !== item) return;
+      item.view.hide(swiped);
+      wake = later(() => {
+        if (active !== item) return;
+        item.view.remove(); active = null;
+        wake = later(() => { cooling = false; tick(); }, 350);
+      }, 220);
+    };
+    wake = later(leave, delay);
+  }
+  async function okay(item) {
+    if (active !== item || item.busy || cooling) return;
+    if (!current(item)) { finish(item); return; }
+    item.busy = true; item.view.pending(true);
+    try {
+      // editTask revalidates and conditionally patches this exact due event.
+      const result = await io.complete(item.task);
+      if (active !== item || io.user() !== account) return;
+      state[item.key] = {...state[item.key], acknowledged:true}; persist();
+      if (!result) { finish(item); return; }
+      item.view.success(); finish(item, 5000);
+    } catch (error) {
+      if (active !== item || io.user() !== account) return;
+      item.busy = false; item.view.pending(false); io.notice(error.message || 'That task could not sync. Please try again.');
+    }
+  }
+  function swipe(item) {
+    if (active !== item || item.busy || cooling) return;
+    state[item.key] = {...state[item.key], nextAt:now() + REMINDER_MS, acknowledged:false}; persist();
+    finish(item, 0, true);
+  }
+  function tick() {
+    if (disposed) return;
+    const user = io.user() || null;
+    if (user !== account) reset(user);
+    if (!user) return;
+    if (active) { if (!active.busy && !cooling && !current(active)) finish(active); return; }
+    if (cooling || !io.ready()) return;
+    cancel(wake);
+    const task = dueQueue(io.rows(), state, now())[0];
+    if (!task) {
+      const next = dueTasks(io.rows(), {}, now()).map(t => state[surfaceKey(t)]).filter(e => e && !e.acknowledged).map(e => e.nextAt || e.lastShown + REMINDER_MS).filter(n => n > now());
+      if (next.length) wake = later(tick, Math.max(1, Math.min(...next)-now()));
+      return;
+    }
+    const key = surfaceKey(task), count = state[key]?.reminderCount || 0;
+    state[key] = {lastShown:now(), nextAt:now()+REMINDER_MS, reminderCount:count+1, acknowledged:false}; persist();
+    const item = {task, key, busy:false}; active = item;
+    item.view = io.show(task, reminderCopy(task.title, count), {okay:() => okay(item), swipe:() => swipe(item)});
+  }
+  return {tick, dispose() { disposed = true; reset(null); }};
+}
+export function showDueBanner(host, task, copy, actions) {
+  const el = node('div', '', 'task-due-banner'), text = node('span', copy), okay = button('Okay', actions.okay);
+  el.setAttribute('role','status'); el.setAttribute('aria-live','polite');
+  text.className = 'task-due-copy'; okay.setAttribute('aria-label','Okay, complete ' + task.title);
+  el.append(text, okay); host.prepend(el);
+  let start = null, distance = 0;
+  const restore = () => { start = null; distance = 0; el.classList.remove('is-dragging'); el.style.transform = ''; el.style.opacity = ''; };
+  el.onpointerdown = event => {
+    if (event.button !== 0 || event.target.closest('button') || okay.disabled) return;
+    start = event.clientY; distance = 0; el.setPointerCapture(event.pointerId); el.classList.add('is-dragging');
+  };
+  el.onpointermove = event => {
+    if (start === null) return;
+    distance = Math.max(0,event.clientY-start);
+    el.style.transform = 'translateY(' + distance + 'px)'; el.style.opacity = String(Math.max(.15,1-distance/160));
+  };
+  el.onpointerup = () => { const dismiss = start !== null && distance >= 48; restore(); if (dismiss) actions.swipe(); };
+  el.onpointercancel = restore; el.onlostpointercapture = restore;
+  return {
+    remove:() => el.remove(), pending:value => { okay.disabled = value; },
+    success:() => { okay.disabled = true; text.textContent = 'All done: ' + task.title; },
+    hide:swiped => { restore(); el.classList.add(swiped ? 'is-swiped' : 'is-fading'); }
+  };
+}
+
 export function setupTaskSecretary(api) {
-  let account, opening = true, checking = false;
+  let account, checking = false, stopped = false;
   const fallback = new Map();
-  const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return fallback.get(key) || null; } };
+  const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback.get(key) ?? null; } catch { return fallback.get(key) || null; } };
   const write = (key,value) => { fallback.set(key,value); try { localStorage.setItem(key,JSON.stringify(value)); } catch {} };
+  const banners = createDueBanners({
+    user:() => getSession()?.user?.id, rows:taskRows, ready:() => !document.hidden && (api.bannerReady?.() ?? api.ready()), read, write,
+    show:(task,copy,actions) => showDueBanner(api.bannerHost,task,copy,actions),
+    complete:task => editTask(task.id,{status:'done'},task.due_at), notice:api.notice
+  });
   async function tick(refresh = false) {
-    if (checking || document.hidden || !getSession()?.user?.id || !api.ready()) return;
+    banners.tick();
+    if (stopped || checking || document.hidden || !getSession()?.user?.id) return;
     checking = true;
     try {
       const user = getSession().user.id;
-      if (user !== account) { account = user; opening = true; refresh = true; }
+      if (user !== account) { account = user; refresh = true; }
       if (refresh) await refreshTasks();
-      if (getSession()?.user?.id !== user || !api.ready()) return;
-      const rows = taskRows(), now = Date.now(), key = 'steep:due:' + user, digestKey = 'steep:digest:' + user;
-      const seen = read(key) || {}, due = dueTasks(rows,seen,now,opening);
+      if (getSession()?.user?.id !== user) return;
+      banners.tick();
+      if (!api.ready()) return;
+      const rows = taskRows(), now = Date.now(), digestKey = 'steep:digest:' + user;
       if (shouldDigest(rows,read(digestKey),now)) {
         const today = digestTasks(rows,now);
         api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at)),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
         write(digestKey,lagosDay(now));
       }
-      for (const task of due) {
-        api.inject({role:'assistant',content:'A reminder for you.',taskDue:{id:task.id,title:task.title,due:task.due_at}});
-        seen[surfaceKey(task)] = true;
-      }
-      // Keep history through completion/reopen; a new timestamp re-arms naturally.
-      write(key,seen); write(digestKey,lagosDay(now)); opening = false;
+      write(digestKey,lagosDay(now));
     } catch (error) { api.notice(error.message); } finally { checking = false; }
   }
-  onTasksChange(() => { if (!getSession()) { account = null; opening = true; } queueMicrotask(() => tick()); });
+  const unsubscribe = onTasksChange(() => { banners.tick(); queueMicrotask(() => tick()); });
   const timer = setInterval(() => tick(true),60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(true); });
+  const visible = () => { if (!document.hidden) tick(true); };
+  document.addEventListener('visibilitychange',visible);
   queueMicrotask(() => tick(true));
-  return () => clearInterval(timer);
+  return () => { stopped = true; clearInterval(timer); unsubscribe(); banners.dispose(); document.removeEventListener('visibilitychange',visible); };
 }

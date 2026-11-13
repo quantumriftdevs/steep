@@ -33,9 +33,9 @@ eq(d.nextOccurrence('2026-11-01T09:00:00+01:00','daily',now),'2026-11-14T08:00:0
 eq(d.tomorrowNine(Date.parse('2026-11-13T23:30:00Z')),'2026-11-15T08:00:00.000Z');
 const row=(id,due,title='Exam prep')=>({id,title,due_at:due,status:'open',created_at:'2026-01-01'});
 const rows=[row('old','2026-11-12T09:00:00+01:00'),row('soon','2026-11-13T10:15:00+01:00'),row('later','2026-11-13T18:00:00+01:00'),row('tomorrow','2026-11-14T09:00:00+01:00'),{...row('done','2026-11-12T09:00:00+01:00'),status:'done'},row('none',null)];
-eq(d.dueTasks(rows,{},now,false).map(x=>x.id),['old','soon']);
-eq(d.dueTasks(rows,{},now,true).map(x=>x.id),['old','soon','later']);
-eq(d.dueTasks(rows,{[d.surfaceKey(rows[0])]:true},now,false).map(x=>x.id),['soon']);
+eq(d.dueTasks(rows,{},now,false).map(x=>x.id),['old']);
+eq(d.dueTasks(rows,{},now,true).map(x=>x.id),['old']);
+eq(d.dueTasks(rows,{[d.surfaceKey(rows[0])]:true},now,false).map(x=>x.id),[]);
 eq(d.digestTasks(rows,now).map(x=>x.id),['old','soon','later']);
 eq(d.shouldDigest(rows,'2026-11-13',now),false);eq(d.shouldDigest(rows,'2026-11-12',now),true);eq(d.shouldDigest([],null,now),false);
 eq(d.taskCandidates('Exam prep',[row('a',null),row('b',null,'Exam prep biology')]).length,2);eq(d.taskCandidates('groceries',[row('a',null)]).length,0);
@@ -43,6 +43,11 @@ tasks=[{...rows[0],recurrence:'weekdays'}];
 async function run(){
  await d.refreshTasks();const rolled=await d.editTask('old',{status:'done'});eq(rolled.status,'open');eq(rolled.due_at,'2026-11-16T08:00:00.000Z');eq(rolled.recurrence,'weekdays');
  await d.editTask('old',{due_at:'2026-11-17T09:00:00+01:00'});eq(tasks[0].due_at,'2026-11-17T08:00:00.000Z');eq(tasks[0].recurrence,'weekdays');
+ const original=rows[0]; tasks=[{...original,status:'done'}];eq(await d.editTask('old',{status:'done'},original.due_at),null);
+ tasks=[];eq(await d.editTask('old',{status:'done'},original.due_at),null);
+ tasks=[{...original,due_at:rows[1].due_at}];eq(await d.editTask('old',{status:'done'},original.due_at),null);eq(tasks[0].status,'open');
+ tasks=[{...original,recurrence:'weekdays'}];await d.editTask('old',{status:'done'},original.due_at);eq(tasks[0].status,'open');eq(tasks[0].due_at,'2026-11-16T08:00:00.000Z');
+ tasks=[{...original}];await d.editTask('old',{status:'done'},original.due_at);eq(tasks[0].status,'done');
  let modelCalls=0, output;
  const imports=n=>n==='./task-intent'?{...t,taskIntent:(m,b)=>t.taskIntent(m,b,now),pendingAnswer:(text,p,b)=>t.pendingAnswer(text,p,b,now)}:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>null}:n==='./personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
  const module={exports:{}};
@@ -55,12 +60,12 @@ async function run(){
  // Exercise timer and localStorage gates with real scheduling helpers, no DOM/model.
  let listener;const ui={...context,...d,taskRows:()=>rows,onTasksChange:fn=>{listener=fn;},refreshTasks:async()=>rows,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)}};
  vm.runInNewContext(fs.readFileSync('js/tasks.js','utf8').replace(/^import[^\n]*\n/gm,'').replace(/export /g,'')+'\nthis.start=setupTaskSecretary;this.reply=taskReply;this.card=taskCard;',ui);
- ui.start({ready:()=>true,notice:e=>{throw Error(e);},inject:(m,top)=>injected.push({m,top})});
+ ui.start({ready:()=>true,bannerReady:()=>false,notice:e=>{throw Error(e);},inject:(m,top)=>injected.push({m,top})});
  for(let i=0;i<10;i++)await Promise.resolve();
- eq(injected.length,4);eq(injected[0].top,true);eq(injected[0].m.taskDigest.title,'Today: 3 tasks');
- await intervals[0]();eq(injected.length,4);
- ui.start({ready:()=>true,notice:e=>{throw Error(e);},inject:m=>injected.push({m})});for(let i=0;i<10;i++)await Promise.resolve();eq(injected.length,4);
- hidden=true;await intervals[0]();eq(injected.length,4);
+ eq(injected.length,1);eq(injected[0].top,true);eq(injected[0].m.taskDigest.title,'Today: 3 tasks');
+ await intervals[0]();eq(injected.length,1);
+ ui.start({ready:()=>true,bannerReady:()=>false,notice:e=>{throw Error(e);},inject:m=>injected.push({m})});for(let i=0;i<10;i++)await Promise.resolve();eq(injected.length,1);
+ hidden=true;await intervals[0]();eq(injected.length,1);
  let edits=[];
  ui.editTask=async(id,input)=>{edits.push({id,input});return {...rows[0],...input};};
  ui.deleteTask=async id=>{edits.push({deleted:id});};
@@ -76,6 +81,7 @@ async function run(){
  ui.getSession=()=>null;let gated=false;try{await ui.reply({taskIntent:'add'});}catch{gated=true;}eq(gated,true);
  const app=fs.readFileSync('js/app.js','utf8');
  eq(app.includes('taskPending.chat !== current.id'),true);eq(app.includes('taskPending.user !== getSession()?.user?.id'),true);eq(app.includes('JSON.parse(body),taskPending:'),true);
- console.log('PASS: '+checks+' secretary assertions; mocked storage/timer/API; no live models.');
+ await require('./due-banner.test')();
+  console.log('PASS: '+checks+' secretary assertions; mocked storage/timer/API; no live models.');
 }
 module.exports=run;if(require.main===module)run().catch(e=>{console.error(e);process.exitCode=1;});

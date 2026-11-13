@@ -91,6 +91,7 @@ function render(welcome = false) {
     });
     messages.append(empty);
   } else current.messages.forEach((m, index) => {
+    if (m.taskDue) return; // Hide legacy due cards, including saved history.
     m.id ||= current.id + '-message-' + index;
     const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
     if (m.role === 'assistant') { const sources = sourcesCard(m.sources); if (sources) body.append(sources); }
@@ -151,6 +152,8 @@ window.addEventListener('steep:guest-page', event => {
 });
 
 setupTaskSecretary({
+  bannerHost: document.querySelector('.composer-wrap'),
+  bannerReady: () => !current.temporary,
   ready: () => !busy && !current.temporary && !projectNav.overview && projectNav.tab !== 'tasks',
   notice: showError,
   inject: (message,top = false) => { if (top) current.messages.unshift(message); else current.messages.push(message); save(); render(); }

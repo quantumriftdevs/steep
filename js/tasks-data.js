@@ -67,9 +67,13 @@ export function addTask(input, source = 'manual', id = crypto.randomUUID()) {
     rows = [created[0], ...rows.filter(t => t.id !== id)]; ++readVersion; emit(); return created[0];
   });
 }
-export function editTask(id, input) {
+export function editTask(id, input, expectedDue) {
   return mutate(async (user, generation) => {
     const updates = {};
+    if (expectedDue !== undefined) {
+      const current = await refreshTasks(), task = current.find(t => t.id === id);
+      if (!task || task.status !== 'open' || Date.parse(task.due_at) !== Date.parse(expectedDue)) return null;
+    }
     if ('title' in input) Object.assign(updates, taskFields(input));
     if ('due_at' in input) { const due = input.due_at; if (due !== null && (typeof due !== 'string' || !Number.isFinite(Date.parse(due)))) throw Error('Choose a valid due date.'); updates.due_at = due === null ? null : new Date(due).toISOString(); }
     if ('status' in input) {
@@ -82,12 +86,14 @@ export function editTask(id, input) {
     }
     if (input.status === 'done') {
       const current = await refreshTasks(), task = current.find(t => t.id === id);
+      if (expectedDue !== undefined && (!task || task.status !== 'open' || Date.parse(task.due_at) !== Date.parse(expectedDue))) return null;
       if (task?.status === 'open' && task.recurrence) {
         updates.due_at = nextOccurrence(task.due_at, task.recurrence);
         updates.status = 'open'; updates.completed_at = null;
       }
     }
-    const changed = await request(user, generation, 'id=eq.' + encodeURIComponent(id) + '&user_id=eq.' + encodeURIComponent(user), 'PATCH', updates);
+    const changed = await request(user, generation, 'id=eq.' + encodeURIComponent(id) + '&user_id=eq.' + encodeURIComponent(user) + (expectedDue === undefined ? '' : '&status=eq.open&due_at=eq.' + encodeURIComponent(new Date(expectedDue).toISOString())), 'PATCH', updates);
+    if (!changed[0] && expectedDue !== undefined) { await refreshTasks(); return null; }
     if (!changed[0]) throw Error('That task is no longer available.');
     rows = rows.map(t => t.id === id ? changed[0] : t); ++readVersion; emit(); return changed[0];
   });
@@ -138,10 +144,8 @@ export function nextOccurrence(due, recurrence, now = Date.now()) {
   return new Date(wall.getTime() - 3600000).toISOString();
 }
 export const surfaceKey = task => task.id + ':' + new Date(task.due_at).toISOString();
-export function dueTasks(tasks, seen = {}, now = Date.now(), opening = false) {
-  return tasks.filter(t => t.status === 'open' && Number.isFinite(Date.parse(t.due_at)) && !seen[surfaceKey(t)] &&
-    (Date.parse(t.due_at) <= now + 900000 || (opening && lagosDay(t.due_at) === lagosDay(now))))
-    .sort((a,b) => Date.parse(a.due_at)-Date.parse(b.due_at));
+export function dueTasks(tasks, seen = {}, now = Date.now()) {
+  return tasks.filter(t => t.status === 'open' && Number.isFinite(Date.parse(t.due_at)) && !seen[surfaceKey(t)] && Date.parse(t.due_at) <= now).sort((a,b) => Date.parse(a.due_at)-Date.parse(b.due_at) || a.id.localeCompare(b.id));
 }
 export function digestTasks(tasks, now = Date.now()) {
   return tasks.filter(t => t.status === 'open' && Number.isFinite(Date.parse(t.due_at)) && (Date.parse(t.due_at) < now || lagosDay(t.due_at) === lagosDay(now)))
