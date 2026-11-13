@@ -47,4 +47,5 @@ async function run(){
     }
     console.log('PASS: '+checks+' follow-up assertions; mocked model only.');
 }
-run().catch(e=>{console.error(e);process.exitCode=1;});
+module.exports=run;
+if(require.main===module)run().catch(e=>{console.error(e);process.exitCode=1;});

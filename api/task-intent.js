@@ -1,16 +1,16 @@
 // Explicit task commands only. Document/page routing always has priority.
 const { randomBytes } = require('crypto');
 const latest = messages => [...messages].reverse().find(m => m.role === 'user')?.content || '';
-exports.taskIntent = (messages, blocked = false) => {
+function baseTaskIntent(messages, blocked = false) {
   const raw = latest(messages).trim().replace(/[’]/g, "'");
   // Conservative ambiguity rule: leave output/artifact language to existing paths.
   if (blocked || raw.length > 12000 || /\b(?:documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?|landing\s+page)\b/i.test(raw)) return null;
   const text = raw.replace(/^(?:(?:please|can you|could you|would you|will you)\s+)+/i, '').replace(/[.!?]+$/, '').trim();
   if (/^(?:what(?:'s| is) on my (?:list|tasks)|my tasks|what do I have to do|show (?:me )?my tasks)$/i.test(text)) return { type: 'list' };
   const finish = phrase => { phrase = phrase.trim().replace(/[.!]+$/, '').trim(); return phrase && phrase.length <= 2000 ? phrase : null; };
-  let match = text.match(/^(?:done with|I finished|I completed|check off)\s+(.+)$/i) || text.match(/^mark\s+(.+?)\s+(?:as\s+)?done$/i);
+  let match = text.match(/^(?:done with|I finished|I completed|check off|complete my)\s+(.+)$/i) || text.match(/^mark\s+(.+?)\s+(?:as\s+)?done$/i);
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'complete', phrase } : null; }
-  match = text.match(/^(?:remove|delete)\s+(.+?)\s+from my (?:list|tasks)$/i);
+  match = text.match(/^delete my\s+(.+)$/i) || text.match(/^(?:remove|delete)\s+(.+?)\s+from my (?:list|tasks)$/i);
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'delete', phrase } : null; }
   match = text.match(/^(?:remind me (?:to|about|of)|set a reminder for)\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
   if (match && finish(match[1])) return { type: 'add', phrase: finish(match[1]) };
@@ -109,4 +109,42 @@ exports.parseDue = (text, now = Date.now()) => {
   // A time without a date means its next occurrence (today or tomorrow).
   if (time) return format(midnight + clock + (midnight + clock < wallNow ? dayMs : 0));
   return null;
+};
+
+// Deterministic secretary commands. All routing keeps artifact precedence.
+exports.recurrence = text => {
+  const m = String(text).match(/\bevery\s+(day|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+  if (!m) return null;
+  const word = m[1].toLowerCase();
+  return word === 'day' ? 'daily' : word === 'weekday' ? 'weekdays' : 'weekly:' + ({monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sunday:7}[word]);
+};
+exports.taskIntent = (messages, blocked = false, now = Date.now()) => {
+  const raw = latest(messages).trim();
+  if (blocked || raw.length > 12000 || /\b(?:documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?|landing\s+page)\b/i.test(raw)) return null;
+  const text = raw.replace(/^(?:(?:please|can you|could you|would you|will you)\s+)+/i, '').replace(/[.!?]+$/, '').trim();
+  const move = text.match(/^(?:move|reschedule|push|change)\s+(?:my\s+)?(.+?)\s+to\s+(.+)$/i);
+  if (move) return {type:'reschedule', phrase:move[1], due:exports.parseDue(move[2], now)};
+  const snooze = text.match(/^snooze\s+(?:my\s+)?(.+)$/i);
+  if (snooze) return {type:'reschedule', phrase:snooze[1], due:new Date(now + 3600000).toISOString()};
+  const bare = text.match(/^remind me\s+(?!to\b|about\b|of\b)(.+)$/i);
+  if (bare) {
+    const due = exports.parseDue(bare[1], now);
+    if (due) return {type:'clarify', due};
+  }
+  const result = baseTaskIntent(messages, blocked);
+  if (result?.type === 'add' && /^(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tonight|tomorrow|next week|in \d+ (?:hours?|days?|weeks?))(?:\s+(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?$/i.test(result.phrase)) {
+    const due = exports.parseDue(result.phrase,now); if (due) return {type:'clarify',due};
+  }
+  if (result?.type === 'add' && /\bevery\s+(?:month|2\s+weeks)\b/i.test(result.phrase)) return {type:'unsupportedRecurrence'};
+  if (result?.type === 'add') result.recurrence = exports.recurrence(result.phrase);
+  return result;
+};
+exports.pendingAnswer = (text, pending, blocked = false, now = Date.now()) => {
+  if (blocked || !exports.validDue(pending?.due) || !Number.isFinite(pending?.at) || now - pending.at > 600000 || now < pending.at) return null;
+  const title = String(text).trim();
+  if (!title || [...title].length > 120 || title.split(/\s+/).length > 16 || /[?\n]/.test(title)) return null;
+  if (exports.taskIntent([{role:'user',content:title}], false, now) || /\b(?:hello|hi|thanks|thank|never mind|nevermind|cancel|forget it|instead|weather|what|why|how|explain|tell me|write|generate|create|make|search|find|maybe|might|someday|perhaps|eventually|wish|hypothetical|documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?)\b/i.test(title)) return null;
+  // A short action phrase is an answer; ordinary conversation drops pending state.
+  if (/^(?:I(?:['’]m| am| think| feel| have)|let['’]s|actually|anyway|can you|could you|we |it |that |the weather)\b/i.test(title)) return null;
+  return title.replace(/^to\s+/i,'').replace(/[.!]+$/, '').trim();
 };

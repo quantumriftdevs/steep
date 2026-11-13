@@ -1,4 +1,4 @@
-import { setupTasks, taskReply, taskCard } from './tasks.js';
+import { setupTasks, taskReply, taskCard, setupTaskSecretary } from './tasks.js';
 import { pageReply, pageCard } from './page-view.js';
 import { documentReply } from './doc-gen.js'; import { markFreshImages } from './image-gen.js';
 import { getSession, logout } from './auth.js'; import { modelRequest, beginRequest, finishRequest, stopRequest } from './model-request.js'; import { requireAuth, pendingGuest } from './guest.js';
@@ -15,6 +15,7 @@ const thread = $('thread'), messages = $('messages'), input = $('prompt');
 const sidebar = $('sidebar'), scrim = $('scrim'), error = $('error');
 let chats = liveChats(loadChats()), current = chats[0] || newChat(), busy = false;
 if (!chats.length) chats = [current];
+let taskPending = null;
 const ghost = setupGhost();
 const ghostTitle = document.createElement('span'); ghostTitle.className = 'ghost-title';
 ghostTitle.textContent = 'Ghost mode'; ghostTitle.hidden = true;
@@ -77,6 +78,7 @@ async function chatMenu(chat) { const run = fn => () => { if (busy || !chats.inc
   tasks.update(); actions.update(temporary || projectNav.overview || projectNav.tab === 'tasks' ? { ...current, messages: [] } : current, busy);
 }
 function render(welcome = false) {
+  if (taskPending && (taskPending.chat !== current.id || taskPending.user !== getSession()?.user?.id || projectNav.tab === 'tasks' || projectNav.overview)) taskPending = null;
   const top = thread.scrollTop, following = follow; stopSpeech(); renderList(); messages.replaceChildren(); if (tasks.render(messages) || projects.render(messages)) { messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top; return; }
   if (current.temporary && !current.messages.length) {
     messages.append(ghostEmpty());
@@ -115,11 +117,14 @@ $('composer').addEventListener('submit', async e => {
   const controller = beginRequest(); requestState(true); const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.innerHTML = '<span class="model-dots" role="status" aria-label="Generating reply"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></span>';  scrollDown();
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
-    const body = await projectPayload(active, payload);  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
+    let body = await projectPayload(active, payload);
+    if (taskPending?.chat === active.id && taskPending.user === owner) body = JSON.stringify({...JSON.parse(body),taskPending:{due:taskPending.due,at:taskPending.at}});
+    taskPending = null;  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
+    if (data.taskIntent === 'clarify') taskPending = {chat:active.id,user:owner,due:data.taskDue,at:Date.now()};
     const reply = (await taskReply(data, () => !controller.signal.aborted && current === active && !projectDeleted(active) && getSession()?.user?.id === owner)) || (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     const message = { role: 'assistant', ...reply, ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
@@ -141,4 +146,10 @@ window.addEventListener('steep:guest-page', event => {
   leaveProjects(); current = newChat(); chats.unshift(current); enterProjectChat(current);
   current.messages.push({ role: 'assistant', ...event.detail });
   save(); showError(''); render();
+});
+
+setupTaskSecretary({
+  ready: () => !busy && !current.temporary && !projectNav.overview && projectNav.tab !== 'tasks',
+  notice: showError,
+  inject: (message,top = false) => { if (top) current.messages.unshift(message); else current.messages.push(message); save(); render(); }
 });

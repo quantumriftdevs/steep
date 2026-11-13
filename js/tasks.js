@@ -2,7 +2,7 @@ import { getSession } from './auth.js';
 import { requireAuth } from './guest.js';
 import { projectNav, leaveProjects } from './projects-context.js';
 import { projectRow } from './projects-icons.js';
-import { taskRows, refreshTasks, onTasksChange, addTask, editTask, deleteTask, matchTask, taskGroup, taskDueLabel } from './tasks-data.js';
+import { taskRows, refreshTasks, onTasksChange, addTask, editTask, deleteTask, matchTask, taskGroup, taskDueLabel, taskCandidates, dueTasks, digestTasks, shouldDigest, surfaceKey, lagosDay, tomorrowNine } from './tasks-data.js';
 const node = (tag, text, cls) => { const el = document.createElement(tag); if (text) el.textContent = text; if (cls) el.className = cls; return el; };
 function button(text, action) { const b = node('button', text); b.type = 'button'; b.onclick = action; return b; }
 function gated(action, notice) {
@@ -99,21 +99,29 @@ export async function taskReply(data, isCurrent = () => true) {
   if (!data.taskIntent) return null;
   if (!getSession()) throw Error('Please sign in to manage tasks.');
   if (!isCurrent()) return null;
+  if (data.taskIntent === 'unsupportedRecurrence') return {content:'I can repeat tasks every day, every weekday or every named weekday. Monthly and every two weeks are not supported yet; no task was added.'};
+  if (data.taskIntent === 'clarify') return {content:data.reply};
   if (data.taskIntent === 'add') {
-    const task = await addTask({ title: data.taskTitle, notes: data.taskNotes, due_at: data.taskDue }, 'chat', data.taskId || (data.taskId = crypto.randomUUID()));
+    const task = await addTask({ title: data.taskTitle, notes: data.taskNotes, due_at: data.taskDue, recurrence: data.taskRecurrence }, 'chat', data.taskId || (data.taskId = crypto.randomUUID()));
     return { content: 'Added that to your tasks.', taskAdded: { id: task.id, title: task.title, due: task.due_at } };
   }
   const rows = await refreshTasks(); if (!isCurrent()) return null;
   const open = rows.filter(t => t.status === 'open');
   if (data.taskIntent === 'list') return { content: open.length ? 'Your open tasks:\n' + open.map(t => '- ' + t.title + (t.due_at ? ' — ' + taskDueLabel(t.due_at) : '')).join('\n') : 'Your list is clear — no open tasks.' };
-  const task = matchTask(data.taskPhrase, open);
-  if (!task) return { content: "I couldn't find that task. Try a few more words from its title." };
-  if (data.taskIntent === 'complete') { await editTask(task.id, { status: 'done' }); return { content: 'Marked done: ' + task.title + '.' }; }
+  const candidates = taskCandidates(data.taskPhrase, open);
+  if (candidates.length > 1) return {content:'Which task did you mean?\n' + candidates.slice(0,8).map(t => '- ' + t.title).join('\n')};
+  const task = candidates[0];
+  if (!task) return { content: "I couldn't find that task. Which task?\n" + open.slice(0,5).map(t => '- ' + t.title).join('\n') };
+  if (data.taskIntent === 'reschedule') {
+    if (!data.taskDue) return {content:'What date and time should I move "' + task.title + '" to? Please repeat the move command with a date.'};
+    const moved = await editTask(task.id, {due_at:data.taskDue}); return {content:'Moved "' + moved.title + '" to ' + taskDueLabel(moved.due_at) + '.'};
+  }
+  if (data.taskIntent === 'complete') { const done = await editTask(task.id, { status: 'done' }); return { content: done.status === 'open' ? 'Completed this occurrence: ' + task.title + '. Next: ' + taskDueLabel(done.due_at) : 'Marked done: ' + task.title + '.' }; }
   if (data.taskIntent === 'delete') { await deleteTask(task.id); return { content: 'Removed: ' + task.title + '.' }; }
   return null;
 }
 export function taskCard(message, save, notice) {
-  if (!message.taskAdded && !message.taskSuggest) return null;
+  if (!message.taskAdded && !message.taskSuggest && !message.taskDue && !message.taskDigest) return null;
   const card = node('div', '', 'task-chat-card'); let busy = false;
   const user = getSession()?.user?.id;
   const valid = () => !user || getSession()?.user?.id === user;
@@ -123,7 +131,23 @@ export function taskCard(message, save, notice) {
   };
   function draw() {
     card.replaceChildren();
-    if (message.taskAdded) {
+    if (message.taskDigest) {
+      card.append(node('strong', message.taskDigest.title));
+      card.append(node('span', message.taskDigest.items.join(' · ')));
+    } else if (message.taskDue) {
+      const due = message.taskDue;
+      card.append(node('strong', 'Reminder: ' + due.title), node('small', taskDueLabel(due.due)));
+      if (due.finished) { card.append(node('span', due.finished)); return; }
+      const change = action => run(async () => {
+        const rows = await refreshTasks(), task = rows.find(t => t.id === due.id);
+        if (!task || task.status !== 'open' || Date.parse(task.due_at) !== Date.parse(due.due)) { due.finished = 'This reminder has already changed.'; return; }
+        const next = await editTask(task.id, typeof action === 'function' ? action() : action);
+        due.finished = next.status === 'done' ? 'Done' : 'Next: ' + taskDueLabel(next.due_at);
+      });
+      for (const [label,action] of [['Done',{status:'done'}],['Snooze 1 hour',() => ({due_at:new Date(Date.now()+3600000).toISOString()})],['Snooze tomorrow 9am',() => ({due_at:tomorrowNine()})]]) {
+        const b = button(label, change(action)); b.disabled = busy; card.append(b);
+      }
+    } else if (message.taskAdded) {
       const task = message.taskAdded; card.append(node('strong','Task added: ' + task.title), node('small',taskDueLabel(task.due)));
       const undo = button('Undo', run(async () => { await deleteTask(task.id); message.taskAdded = null; message.taskSuggest = null; })); undo.disabled = busy; card.append(undo);
     } else if (message.taskSuggest) {
@@ -139,4 +163,39 @@ export function taskCard(message, save, notice) {
     } else card.hidden = true;
   }
   draw(); return card;
+}
+
+export function setupTaskSecretary(api) {
+  let account, opening = true, checking = false;
+  const fallback = new Map();
+  const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return fallback.get(key) || null; } };
+  const write = (key,value) => { fallback.set(key,value); try { localStorage.setItem(key,JSON.stringify(value)); } catch {} };
+  async function tick(refresh = false) {
+    if (checking || document.hidden || !getSession()?.user?.id || !api.ready()) return;
+    checking = true;
+    try {
+      const user = getSession().user.id;
+      if (user !== account) { account = user; opening = true; refresh = true; }
+      if (refresh) await refreshTasks();
+      if (getSession()?.user?.id !== user || !api.ready()) return;
+      const rows = taskRows(), now = Date.now(), key = 'steep:due:' + user, digestKey = 'steep:digest:' + user;
+      const seen = read(key) || {}, due = dueTasks(rows,seen,now,opening);
+      if (shouldDigest(rows,read(digestKey),now)) {
+        const today = digestTasks(rows,now);
+        api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at)),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
+        write(digestKey,lagosDay(now));
+      }
+      for (const task of due) {
+        api.inject({role:'assistant',content:'A reminder for you.',taskDue:{id:task.id,title:task.title,due:task.due_at}});
+        seen[surfaceKey(task)] = true;
+      }
+      // Keep history through completion/reopen; a new timestamp re-arms naturally.
+      write(key,seen); write(digestKey,lagosDay(now)); opening = false;
+    } catch (error) { api.notice(error.message); } finally { checking = false; }
+  }
+  onTasksChange(() => { if (!getSession()) { account = null; opening = true; } queueMicrotask(() => tick()); });
+  const timer = setInterval(() => tick(true),60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(true); });
+  queueMicrotask(() => tick(true));
+  return () => clearInterval(timer);
 }

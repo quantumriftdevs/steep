@@ -91,6 +91,8 @@ async function run() {
   console.log('PASS: '+checks+' assertions; '+fixtures.length+' intent fixtures; no live model calls.');
   await require('./round.test')();
   require('./doc-intent.test')();
+  await require('./followup.test')();
+  await require('./secretary.test')();
   return checks;
 }
 module.exports=run;

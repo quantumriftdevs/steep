@@ -32,3 +32,5 @@
 .task-chat-card button:focus,.task-chat-card button:focus-visible{outline:none;box-shadow:none}
 .task-chat-card button+button{margin-left:8px}.task-chat-card[hidden]{display:none}
 @media(max-width:480px){.tasks-form{padding:15px}.task-controls{padding-left:0}}
+
+.task-chat-card small{font-size:16px}.task-chat-card button{margin:4px 4px 0 0}.task-chat-card button+button{margin-left:0}

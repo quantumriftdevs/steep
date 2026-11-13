@@ -1,4 +1,4 @@
-const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue } = require('./task-intent');
+const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue, pendingAnswer } = require('./task-intent');
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
@@ -54,7 +54,10 @@ module.exports = async (req, res) => {
   const page = candidate && (!requestedDoc || candidate.explicit) ? candidate : null;
   const doc = page ? null : requestedDoc;
   const task = taskIntent(messages, !!(page || doc));
-  if (task && task.type !== 'add') return res.status(200).json({ taskIntent: task.type, taskPhrase: task.phrase || '', reply: task.type === 'list' ? 'Checking your tasks.' : 'Checking for that task.' });
+  if (task?.type === 'clarify') return res.status(200).json({taskIntent:'clarify', taskDue:task.due, reply:"What should I remind you about?"});
+  const pendingTitle = !task && pendingAnswer([...messages].reverse().find(m => m.role === 'user')?.content, req.body?.taskPending, !!(page || doc));
+  if (pendingTitle) return res.status(200).json({taskIntent:'add', taskTitle:pendingTitle, taskDue:validDue(req.body.taskPending.due), reply:'Preparing your reminder.'});
+  if (task && task.type !== 'add') return res.status(200).json({ taskIntent: task.type, taskPhrase: task.phrase || '', taskDue:task.due || null, reply: task.type === 'list' ? 'Checking your tasks.' : 'Checking for that task.' });
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
   if (!groqKey) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add GROQ_API_KEY in Vercel" });
   let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
@@ -90,7 +93,15 @@ module.exports = async (req, res) => {
       if (normalTaskOutput) normalTaskOutput.reply = sanitizeChatReply(normalTaskOutput.reply); const output = task?.type === 'add' ? taskAddResult(reply, taskMarks) : normalTaskOutput || (doc ? { reply } : page ? pageResult(page, reply) : { reply: sanitizeChatReply(reply) });
       const latestUserText = [...messages].reverse().find(m => m.role === 'user')?.content || '';
       const dueNow = Date.now();
-      if (output.taskIntent === 'add') output.taskDue = chooseTaskDue(latestUserText, output.taskDue, dueNow);
+      if (output.taskIntent === 'add') {
+        output.taskDue = chooseTaskDue(latestUserText, output.taskDue, dueNow);
+        if (task?.recurrence) {
+          output.taskRecurrence = task.recurrence;
+          output.taskTitle = output.taskTitle.replace(/\s+every\s+(?:day|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$/i,'').trim();
+          output.taskDue ||= parseDue('at 9am', dueNow);
+          if (task.recurrence === 'weekdays') { while ([0,6].includes(new Date(Date.parse(output.taskDue)+3600000).getUTCDay())) output.taskDue = new Date(Date.parse(output.taskDue)+86400000).toISOString(); }
+        }
+      }
       if (output.taskSuggest) output.taskSuggest.due = chooseTaskDue(latestUserText, output.taskSuggest.due, dueNow);
       if (page && output.pageIntent) { const reviewController = new AbortController(); const abortReview = () => reviewController.abort(); const reviewTimer = setTimeout(abortReview, 20000); controller.signal.addEventListener('abort', abortReview, { once: true }); try { if (controller.signal.aborted) abortReview(); const critique = 'You are reviewing a web page you just built. Check it strictly: 1) At 390px wide there is no horizontal scrolling, nothing overlaps or looks cramped. 2) Clear type hierarchy: one dominant headline, readable body text. 3) Spacing is consistent with generous whitespace. 4) Colors are coherent with readable contrast. 5) All content is real and complete - zero placeholders. 6) Every interactive element works. 7) No external resources anywhere. 8) The HTML is complete and valid. If ANY check fails, fix every failure and output the full corrected page. If all pass, output the page unchanged. Output only the page.'; const reviewBody = providerBody({ model, messages: [{ role: 'system', content: critique + ' Preserve the inline-only sandbox rules: no imports, frames, dependencies, localStorage, cookies, alert, eval or external form submission. Preserve accessible labels, keyboard controls and focus states. Keep total output under 60,000 characters.' }, { role: 'user', content: output.pageHtml }] }, isProject); if (reviewBody !== null) { const reviewed = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` }, body: reviewBody, signal: reviewController.signal }); if (reviewed.ok) { const reviewData = await reviewed.json(); const revised = reviewData?.choices?.[0]?.message?.content; if (typeof revised === 'string' && revised.trim()) { /* Validate page-only output with the existing randomized scaffold. */ const result = pageResult(page, ['<<<' + page.marker + ':BEGIN>>>', revised.trim(), '<<<' + page.marker + ':END>>>'].join(String.fromCharCode(10))); if (result.pageIntent && result.pageHtml.length < 60000) output.pageHtml = result.pageHtml; } } } } catch (_) { /* Best-effort review: keep the successful first draft. */ } finally { clearTimeout(reviewTimer); controller.signal.removeEventListener('abort', abortReview); } }
       output.reply = stripFileData(output.reply);
