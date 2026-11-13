@@ -6,6 +6,7 @@ import { setupProfile, recentLabel, pinMarker, openSidebarRename, closeSidebarRe
 import { loadChats, saveChats, newChat, onChatsChange } from './store.js';
 import { setupChatActions } from './chat-actions.js'; import { bindMenu } from './context-menu.js'; import { shareChat, activeShare, stopSharing } from './shares.js';
 import { responseActions, stopSpeech } from './actions.js';
+import { sourcesCard, sourceList } from './sources.js';
 import { bubble, animate } from './messages.js'; import { modelPayload } from './attach-payload.js';
 import { temporaryChat, ghostEmpty, setupGhost, updateGhost } from './ghost.js';
 import { setupGreeting } from './greet.js'; import { hasAttachment, clearAttachment, restoreAttachment, lockAttachment, prepareAttachment, attachmentNote } from './attach.js';
@@ -92,6 +93,7 @@ function render(welcome = false) {
   } else current.messages.forEach((m, index) => {
     m.id ||= current.id + '-message-' + index;
     const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
+    if (m.role === 'assistant') { const sources = sourcesCard(m.sources); if (sources) body.append(sources); }
     if (m.role === 'assistant' && m.pageIntent) body.append(pageCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError));
     if (m.role === 'assistant') { const card = taskCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError); if (card) body.append(card); }     if (m.role === 'assistant') responseActions(body, m, {
       current: () => current, busy: () => busy, save, notice: showError,
@@ -127,7 +129,7 @@ $('composer').addEventListener('submit', async e => {
     if (data.taskIntent === 'clarify') taskPending = {chat:active.id,user:owner,due:data.taskDue,at:Date.now()};
     const reply = (await taskReply(data, () => !controller.signal.aborted && current === active && !projectDeleted(active) && getSession()?.user?.id === owner)) || (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
-    const message = { role: 'assistant', ...reply, ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
+    const message = { role: 'assistant', ...reply, ...(data.research ? { sources: sourceList(data.research.sources) } : {}), ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     // Keep the sent message locally even when the model/network is unavailable.

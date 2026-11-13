@@ -93,6 +93,7 @@ async function run() {
   require('./doc-intent.test')();
   await require('./followup.test')();
   await require('./secretary.test')();
+  await require('./fetch-page.test')();
   return checks;
 }
 module.exports=run;

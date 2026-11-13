@@ -1,5 +1,6 @@
 // Deterministic intent gate: no classifier call and no search credits for ordinary chat.
 const cache = new Map();
+const { urlsIn, fetchPages } = require('./fetch-page');
 function needsResearch(text) {
   if (/\b(?:do not|don't|without|no)\s+(?:web\s+)?(?:search|research|browsing)\b/i.test(text)) return false;
   if (/\b(?:research|fact[- ]?check|verify (?:this|that|whether)|look (?:it |this |that )?up|search (?:the )?(?:web|internet|online)|browse (?:the )?(?:web|internet)|find (?:me )?(?:sources|citations)|with (?:sources|citations))\b/i.test(text)) return true;
@@ -8,6 +9,8 @@ function needsResearch(text) {
 function safeUrl(value) { try { const u = new URL(value); return u.protocol === 'https:' || u.protocol === 'http:' ? u.href.slice(0,1500) : null; } catch { return null; } }
 exports.research = async function(messages, userId, signal) {
   const text = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+  const urls = urlsIn(text);
+  if (urls.length) return fetchPages(urls, signal);
   if (!needsResearch(text)) return null;
   const key = (process.env.TAVILY_API_KEY || '').trim();
   if (!key) throw Object.assign(new Error("Web research isn't connected yet - add TAVILY_API_KEY in Vercel."), { status: 503, code: 'NOT_CONNECTED' });
