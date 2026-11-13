@@ -10,9 +10,16 @@ const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base
 // Normal conversation is text, not a page-generation result. Never use pageResult's
 // preview-error fallback here: retain useful text even if the model emits tags.
 function sanitizeChatReply(reply) {
-  return reply.replace(/<{2,3}STEEP[_-]PAGE[^>\r\n]*>{2,3}/gi, '')
+  // Strict extraction runs first. Broken metadata is discarded, never recovered
+  // into an action or suggestion. Quoted braces must not terminate its JSON.
+  return reply.replace(/<<[^\r\n{]*(?:\r?\n[ \t]*)?(\{(?:"(?:\\.|[^"\\])*"|[^"}])*\})[ \t]*(?:\r?\n[ \t]*)?(?:<<[^\r\n]*?>>+|>+)?/g, (whole, json) =>
+      /"title"\s*:/.test(json) && /"due"\s*:/.test(json) ? '' : whole)
+    .replace(/<{2,3}STEEP[_-]TASK[^>\r\n]*>{0,3}/gi, '')
+    .replace(/<{2,3}STEEP[_-]PAGE[^>\r\n]*>{2,3}/gi, '')
+    .replace(/^[ \t]*<<[^\r\n]*>>[ \t]*$|^[ \t]*[<>]{2,}[ \t]*$/gm, '')
     .replace(/<![^>]*>|<\/?[a-z][^>]*>/gi, '').trim();
 }
+
 function chooseTaskDue(text, modelDue, now = Date.now()) {
   const parsed = parseDue(text, now);
   if (parsed) return parsed;

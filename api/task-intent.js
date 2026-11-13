@@ -1,7 +1,7 @@
 // Explicit task commands only. Document/page routing always has priority.
 const { randomBytes } = require('crypto');
 const latest = messages => [...messages].reverse().find(m => m.role === 'user')?.content || '';
-function baseTaskIntent(messages, blocked = false) {
+function baseTaskIntent(messages, blocked = false, now = Date.now()) {
   const raw = latest(messages).trim().replace(/[’]/g, "'");
   // Conservative ambiguity rule: leave output/artifact language to existing paths.
   if (blocked || raw.length > 12000 || /\b(?:documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?|landing\s+page)\b/i.test(raw)) return null;
@@ -14,6 +14,10 @@ function baseTaskIntent(messages, blocked = false) {
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'delete', phrase } : null; }
   match = text.match(/^(?:remind me (?:to|about|of)|set a reminder for)\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
   if (match && finish(match[1])) return { type: 'add', phrase: finish(match[1]) };
+  // New noun-style reminder anchors require a due date; keep speculative requests out.
+  match = text.match(/^(?:remind me for|reminder for)\s+(.+)$/i);
+  if (match && finish(match[1]) && exports.parseDue(match[1], now) &&
+      !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(match[1])) return { type: 'add', phrase: finish(match[1]) };
   return null;
 };
 exports.taskProtocol = () => {
@@ -76,6 +80,11 @@ exports.parseDue = (text, now = Date.now()) => {
     else if (/^(?:at|by)\s/i.test(time[0]) && hour >= 1 && hour <= 7) hour += 12;
   }
   const clock = hour * hourMs + minute * 60000;
+  const minutes = raw.match(/\bin\s+(\d+)\s+(?:minutes?|mins?)\b/);
+  if (minutes) {
+    const n = Number(minutes[1]);
+    return Number.isSafeInteger(n) && n <= 36500 ? format(wallNow + n * 60000) : null;
+  }
   const relative = raw.match(/\bin\s+(\d+)\s+(days?|hours?|weeks?)\b/);
   if (relative) {
     const n = Number(relative[1]), unit = relative[2];
@@ -126,13 +135,13 @@ exports.taskIntent = (messages, blocked = false, now = Date.now()) => {
   if (move) return {type:'reschedule', phrase:move[1], due:exports.parseDue(move[2], now)};
   const snooze = text.match(/^snooze\s+(?:my\s+)?(.+)$/i);
   if (snooze) return {type:'reschedule', phrase:snooze[1], due:new Date(now + 3600000).toISOString()};
+  const result = baseTaskIntent(messages, blocked, now);
   const bare = text.match(/^remind me\s+(?!to\b|about\b|of\b)(.+)$/i);
-  if (bare) {
+  if (bare && result?.type !== 'add') {
     const due = exports.parseDue(bare[1], now);
     if (due) return {type:'clarify', due};
   }
-  const result = baseTaskIntent(messages, blocked);
-  if (result?.type === 'add' && /^(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tonight|tomorrow|next week|in \d+ (?:hours?|days?|weeks?))(?:\s+(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?$/i.test(result.phrase)) {
+  if (result?.type === 'add' && /^(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tonight|tomorrow|next week|in \d+ (?:minutes?|mins?|hours?|days?|weeks?))(?:\s+(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?$/i.test(result.phrase)) {
     const due = exports.parseDue(result.phrase,now); if (due) return {type:'clarify',due};
   }
   if (result?.type === 'add' && /\bevery\s+(?:month|2\s+weeks)\b/i.test(result.phrase)) return {type:'unsupportedRecurrence'};

@@ -89,6 +89,7 @@ async function run() {
     else equal(output.taskIntent,expected);
   }
   console.log('PASS: '+checks+' assertions; '+fixtures.length+' intent fixtures; no live model calls.');
+  await require('./reminder-regression.test')();
   await require('./round.test')();
   require('./doc-intent.test')();
   await require('./followup.test')();
