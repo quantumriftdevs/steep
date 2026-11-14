@@ -1,3 +1,5 @@
+import { messageCard, progressCard } from './cards.js';
+import { clientReply } from './card-flows.js';
 import { setupTasks, taskReply, taskCard, setupTaskSecretary } from './tasks.js';
 import { pageReply, pageCard } from './page-view.js';
 import { documentReply } from './doc-gen.js'; import { markFreshImages } from './image-gen.js';
@@ -93,10 +95,11 @@ function render(welcome = false) {
   } else current.messages.forEach((m, index) => {
     if (m.taskDue) return; // Hide legacy due cards, including saved history.
     m.id ||= current.id + '-message-' + index;
-    const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
+    const chat = current, imageOwner = getSession()?.user?.id; const body = bubble(messages, m.role, m.taskQuery ? m.taskQuery.note : m.content, m.attachment, { message: m, onImage: (i, src) => { if (current !== chat || projectDeleted(chat) || getSession()?.user?.id !== imageOwner || !chat.messages.includes(m)) return false; const images = [...(m.images || [])]; images[i] = src; const candidate = chat.messages.map(item => item === m ? { ...m, images } : item); if (new TextEncoder().encode(JSON.stringify(candidate)).length > 1350000) { showError('This chat is too large to save another image. Try a new chat.'); return false; } m.images = images; save(); return true; } });
     if (m.role === 'assistant') { const sources = sourcesCard(m.sources); if (sources) body.append(sources); }
-    if (m.role === 'assistant' && m.pageIntent) body.append(pageCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError));
-    if (m.role === 'assistant') { const card = taskCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) save(); }, showError); if (card) body.append(card); }     if (m.role === 'assistant') responseActions(body, m, {
+    if (m.role === 'assistant' && m.pageIntent) body.append(pageCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) { if (m.page?.saved && m.cardOutcome) { m.cardOutcome.state='done'; m.cardOutcome.details='Your page preview is saved.'; } save(); render(); } }, showError));
+    if (m.role === 'assistant') { const card = taskCard(m, () => { if (current === chat && getSession()?.user?.id === imageOwner && chat.messages.includes(m)) { save(); render(); } }, showError); if (card) body.append(card); }     if (m.role === 'assistant') messageCard(body,m);
+    if (m.role === 'assistant') responseActions(body, m, {
       current: () => current, busy: () => busy, save, notice: showError,
       adopt: chat => { current = chat; chats = chats.filter(c => c.id !== chat.id); chats.unshift(chat); enterProjectChat(chat); save(); }, lock: value => { requestState(value); lockAttachment(value); render(); }
     });
@@ -118,6 +121,8 @@ $('composer').addEventListener('submit', async e => {
   if (first) current.title = userText.slice(0, 42); save();
   input.value = ''; input.style.height = 'auto'; render();
   const controller = beginRequest(); requestState(true); const typing = bubble(messages, 'assistant', ''); typing.classList.add('typing'); typing.innerHTML = '<span class="model-dots" role="status" aria-label="Generating reply"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></span>';  scrollDown();
+  let progress; const steps=[]; const phase = text => {steps.push(text); if (!progress) progress=progressCard(typing,'Taking care of it',text); else progress.step(text); scrollDown();};
+  if (userText.includes('https://') || userText.includes('http://')) phase('Requesting page reading...');
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
     let body = await projectPayload(active, payload);
@@ -128,12 +133,15 @@ $('composer').addEventListener('submit', async e => {
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
     if (data.taskIntent === 'clarify') taskPending = {chat:active.id,user:owner,due:data.taskDue,title:data.taskPendingTitle,checkin:data.taskCheckin,recurrence:data.taskRecurrence,at:Date.now()};
-    const reply = (await taskReply(data, () => !controller.signal.aborted && current === active && !projectDeleted(active) && getSession()?.user?.id === owner)) || (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
+    const reply = await clientReply(data,{step:phase,notice:text=>showError(text,5000),task:d=>taskReply(d,()=>!controller.signal.aborted && current===active && !projectDeleted(active) && getSession()?.user?.id===owner),page:(d,notice)=>pageReply(d,controller.signal,notice),document:(d,notice)=>documentReply(d,active,controller.signal,notice)});
+    if (reply.cardOutcome) reply.cardOutcome.steps=steps;
+    else if(progress && !data.taskIntent) reply.cardOutcome={state:'blocked',kind:'Web reading',title:'Page reading',steps,details:'No reading result was returned. The response is kept below.'}; if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); if (!reply.cardOutcome) await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     const message = { role: 'assistant', ...reply, ...(data.research ? { sources: sourceList(data.research.sources) } : {}), ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     // Keep the sent message locally even when the model/network is unavailable.
+    if(progress) current.messages.push({role:'assistant',content:err.name==='AbortError' || controller.signal.aborted ? 'Stopped. No result was completed.' : err.message || 'Could not connect. Try again.',cardOutcome:{state:err.name==='AbortError' || controller.signal.aborted ? 'cancelled':'blocked',kind:'Request',title:'Request stopped',steps,details:err.message || 'Could not connect. Try again.'}});
     if (err.name !== 'AbortError' && !controller.signal.aborted) showError(err.message || 'Could not connect. Try again.'); else showError(''); input.value = ''; save();
   } finally { finishRequest(controller); requestState(false); lockAttachment(false); render(); }
 });

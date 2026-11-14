@@ -1,0 +1,20 @@
+/* Task presentation only. Header, drawer, navigation and banners are protected. */
+.steep-card,.task-row{--card-bg:#fffefa;--card-text:#38251d;--card-sub:#7d675b;--card-edge:#eadfd1;--card-soft:#f4e6d4}
+:root[data-theme=dark] :is(.steep-card,.task-row){--card-bg:#31251f;--card-text:#fcf8f1;--card-sub:#c8b09b;--card-edge:#584234;--card-soft:#423024}
+@media(prefers-color-scheme:dark){:root[data-theme=system] :is(.steep-card,.task-row){--card-bg:#31251f;--card-text:#fcf8f1;--card-sub:#c8b09b;--card-edge:#584234;--card-soft:#423024}}
+.assistant .bubble.has-task-card{background:transparent;padding:0;min-width:0;width:100%;font-size:16px;font-style:normal}
+.steep-card{box-sizing:border-box;width:100%;min-width:0;margin:0 0 12px;padding:20px;border:1px solid var(--card-edge);border-radius:19px;background:var(--card-bg);color:var(--card-text);box-shadow:0 13px 35px #130c0712;font-size:16px;line-height:1.55;overflow-wrap:anywhere}
+.steep-card-top{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+.steep-card-kind{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--card-sub)}
+.steep-card h3{font-size:18px;font-weight:570;line-height:1.4;letter-spacing:-.3px;margin:0 0 8px}
+.steep-chip{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;font-size:11px;line-height:1.5;letter-spacing:.3px;padding:4px 9px;border:1px solid var(--card-edge);border-radius:30px;background:var(--card-soft);color:var(--card-sub);white-space:normal}
+.steep-chip:before{content:'';width:6px;height:6px;flex:none;border-radius:50%;background:#d98642}
+.steep-chip.done:before,.steep-chip.upcoming:before{background:#98b68d}.steep-chip.overdue:before,.steep-chip.blocked:before{background:#d5947f}
+.steep-card--working{border-color:#98613b;background:radial-gradient(ellipse at top left,#d9864210,transparent 70%),var(--card-bg)}
+.steep-card--waiting{border-color:#9c744b;box-shadow:0 0 0 4px #d9864207}.steep-card--blocked{border-left:3px solid #b67d68}.steep-card--cancelled{opacity:.65}.steep-card--cancelled h3{text-decoration:line-through}
+.steep-card-steps{padding-left:20px;color:var(--card-sub);font-size:14px}.steep-card details{border-top:1px solid var(--card-edge);margin-top:14px;padding-top:12px;color:var(--card-sub);font-size:14px}.steep-card summary{cursor:pointer;min-height:44px}
+.steep-card-rows{list-style:none!important;margin:12px 0!important;padding:0!important}.steep-card-rows li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;border-top:1px solid var(--card-edge)}.steep-card-rows li>span:first-child{flex:1;min-width:0}.steep-card-rows small{flex-basis:100%;color:var(--card-sub)}
+.steep-task-actions{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}.steep-task-actions>strong,.steep-task-actions>small,.steep-task-actions>span{width:100%}.steep-task-actions small{color:var(--card-sub)}
+.steep-task-actions button{font:inherit;min-height:44px;border:1px solid var(--card-edge);border-radius:12px;padding:10px 14px;background:var(--card-soft);color:var(--card-text);cursor:pointer}.steep-task-actions button:disabled{opacity:.5}
+.tasks-view .task-row{background:var(--card-bg);border:1px solid var(--card-edge);color:var(--card-text);border-radius:16px;padding:13px;margin-top:11px;font-size:16px}.task-row>.steep-row-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px}
+@media(max-width:480px){.steep-card{padding:16px}.steep-card-top{gap:7px}.steep-card-result{min-width:0}}

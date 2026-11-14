@@ -96,6 +96,7 @@ async function run() {
   await require('./secretary.test')();
   await require('./instincts.test')();
   await require('./fetch-page.test')();
+  await require('./cards.test')();
   return checks;
 }
 module.exports=run;

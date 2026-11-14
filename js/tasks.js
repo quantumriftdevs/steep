@@ -47,6 +47,7 @@ export function setupTasks(api) {
         toggle.className = 'task-toggle'; toggle.setAttribute('aria-pressed', String(task.status === 'done'));
         toggle.setAttribute('aria-label', (task.status === 'done' ? 'Reopen ' : 'Complete ') + task.title);
         toggle.append(node('span', task.status === 'done' ? '☑' : '☐', 'task-check'), text);
+        const chips = node('div', '', 'steep-row-chips'); for (const label of [group, ...(task.recurrence ? ['Recurring'] : []), ...(isCheckin(task) ? ['Check-in'] : [])]) chips.append(node('span',label,'steep-chip ' + label.toLowerCase())); row.append(chips);
         const details = node('div', '', 'task-details'); details.append(node('small', taskDueLabel(task.due_at)));
         if (task.notes) { const note = isCheckin(task) ? task.notes.replace(/^\[steep:check-in\]\n?/, '') : task.notes; if (note) details.append(node('p', note)); }
         if (isCheckin(task)) details.append(node('small', 'Check-in'));
@@ -96,11 +97,12 @@ export function setupTasks(api) {
     }
   };
 }
+function presentationRows(rows) { return rows.map(t => ({title:t.title,label:taskGroup(t),tone:taskGroup(t).toLowerCase(),detail:taskDueLabel(t.due_at) + (t.recurrence ? ' · Recurring' : '') + (isCheckin(t) ? ' · Check-in' : '') + (longWaiting(t) ? ' — this one has been waiting a while; want to reschedule or let it go?' : '')})); }
 export async function taskReply(data, isCurrent = () => true) {
   if (!data.taskIntent) return null;
   if (!getSession()) throw Error('Please sign in to manage tasks.');
   if (!isCurrent()) return null;
-  if (data.taskIntent === 'clarify') return {content:data.reply};
+  if (data.taskIntent === 'clarify') return {content:data.reply,taskQuestion:true};
   if (data.taskIntent === 'add') {
     const task = await addTask({ title: data.taskTitle, notes: data.taskNotes, due_at: data.taskDue, recurrence: data.taskRecurrence }, 'chat', data.taskId || (data.taskId = crypto.randomUUID()));
     return { content: 'Added that to your tasks.', taskAdded: { id: task.id, title: task.title, due: task.due_at } };
@@ -110,17 +112,17 @@ export async function taskReply(data, isCurrent = () => true) {
   if (data.taskIntent === 'list') {
     const selected = queryTasks(rows,data.taskQuery), finished = data.taskQuery?.startsWith('finished:');
     const label = finished ? 'Completed ' + (data.taskQuery === 'finished:month' ? 'this month' : 'this week') : ({overdue:'Overdue',tomorrow:'Due tomorrow',week:'Due this week'}[data.taskQuery] || 'Your open tasks');
-    return {content:label + (selected.length ? ':\n' + selected.map(t=>'- ' + t.title + (t.due_at ? ' - ' + taskDueLabel(t.due_at) : '')).join('\n') : ': nothing here.') + (finished ? '\nBased on saved completed_at timestamps. Reopened/deleted tasks and recurring occurrences are not a completion log.' : '')};
+    return {taskQuery:{title:label,rows:presentationRows(selected),note:finished ? 'Based on saved completed_at timestamps. Reopened/deleted tasks and recurring occurrences are not a completion log.' : selected.length ? 'Your saved tasks, at a glance.' : 'Nothing here.'},content:label + (selected.length ? ':\n' + selected.map(t=>'- ' + t.title + (t.due_at ? ' - ' + taskDueLabel(t.due_at) : '')).join('\n') : ': nothing here.') + (finished ? '\nBased on saved completed_at timestamps. Reopened/deleted tasks and recurring occurrences are not a completion log.' : '')};
   }
   const candidates = taskCandidates(data.taskPhrase, open);
-  if (candidates.length > 1) return {content:'Which task did you mean?\n' + candidates.slice(0,8).map(t => '- ' + t.title).join('\n')};
+  if (candidates.length > 1) return {taskQuestion:true,content:'Which task did you mean?\n' + candidates.slice(0,8).map(t => '- ' + t.title).join('\n')};
   const task = candidates[0];
-  if (!task) return { content: "I couldn't find that task. Which task?\n" + open.slice(0,5).map(t => '- ' + t.title).join('\n') };
+  if (!task) return { taskQuestion:true, content: "I couldn't find that task. Which task?\n" + open.slice(0,5).map(t => '- ' + t.title).join('\n') };
   if (data.taskIntent === 'reschedule') {
-    if (!data.taskDue) return {content:'What date and time should I move "' + task.title + '" to? Please repeat the move command with a date.'};
+    if (!data.taskDue) return {taskQuestion:true,content:'What date and time should I move "' + task.title + '" to? Please repeat the move command with a date.'};
     const moved = await editTask(task.id, {due_at:data.taskDue}); return {content:'Moved "' + moved.title + '" to ' + taskDueLabel(moved.due_at) + '.'};
   }
-  if (data.taskIntent === 'complete') { const done = await editTask(task.id, { status: 'done' }); return { content: done.status === 'open' ? completionCopy(task) + ' Next: ' + taskDueLabel(done.due_at) : completionCopy(task) + ' ' + task.title }; }
+  if (data.taskIntent === 'complete') { const done = await editTask(task.id, { status: 'done' }); return { taskCompleted:{title:task.title}, content: done.status === 'open' ? completionCopy(task) + ' Next: ' + taskDueLabel(done.due_at) : completionCopy(task) + ' ' + task.title }; }
   if (data.taskIntent === 'delete') { await deleteTask(task.id); return { content: 'Removed: ' + task.title + '.' }; }
   return null;
 }
@@ -137,7 +139,8 @@ export function taskCard(message, save, notice) {
     card.replaceChildren();
     if (message.taskDigest) {
       card.append(node('strong', message.taskDigest.title));
-      card.append(node('span', message.taskDigest.items.join(' · ')));
+      if (message.taskDigest.rows && message.taskDigest.items.some(t=>/more in Tasks/i.test(t))) card.append(node('small','More in Tasks.'));
+      if (!message.taskDigest.rows) card.append(node('span', message.taskDigest.items.join(' · ')));
     } else if (message.taskAdded) {
       const task = message.taskAdded; card.append(node('strong','Task added: ' + task.title), node('small',taskDueLabel(task.due)));
       const undo = button('Undo', run(async () => { await deleteTask(task.id); message.taskAdded = null; message.taskSuggest = null; })); undo.disabled = busy; card.append(undo);
@@ -289,7 +292,7 @@ export function setupTaskSecretary(api) {
       const rows = taskRows(), now = Date.now(), digestKey = 'steep:digest:' + user;
       if (shouldDigest(rows,read(digestKey),now)) {
         const today = digestTasks(rows,now);
-        api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at) + (longWaiting(t,now) ? " - this one's been waiting a while; want to reschedule or let it go?" : '')),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
+        api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',rows:presentationRows(today.slice(0,5)),items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at) + (longWaiting(t,now) ? " - this one's been waiting a while; want to reschedule or let it go?" : '')),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
         write(digestKey,lagosDay(now));
       }
       write(digestKey,lagosDay(now));
@@ -301,7 +304,7 @@ export function setupTaskSecretary(api) {
           items.push(...groups[key].slice(0,5).map(t=>t.title + (key === 'tomorrow' ? ' - ' + taskDueLabel(t.due_at) : '')));
           if (groups[key].length>5) items.push('More in Tasks.');
         }
-        api.inject({role:'assistant',content:'A quiet look back, and a little space for tomorrow. Recurring occurrences are not included in finished totals.',taskDigest:{title:'Your evening wrap',items}},true);
+        api.inject({role:'assistant',content:'A quiet look back, and a little space for tomorrow. Recurring occurrences are not included in finished totals.',taskDigest:{title:'Your evening wrap',rows:Object.entries(groups).flatMap(([key,tasks]) => [{title:({completed:'Finished today',slipped:'Rolled past due today',tomorrow:'Tomorrow'})[key] + ': ' + tasks.length},...presentationRows(tasks.slice(0,5))]),items}},true);
         write(wrapKey,lagosDay(now));
       }
     } catch (error) { api.notice(error.message); } finally { checking = false; }
