@@ -7,12 +7,13 @@ function baseTaskIntent(messages, blocked = false, now = Date.now()) {
   if (blocked || raw.length > 12000 || /\b(?:documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?|landing\s+page)\b/i.test(raw)) return null;
   const text = raw.replace(/^(?:(?:please|can you|could you|would you|will you)\s+)+/i, '').replace(/[.!?]+$/, '').trim();
   if (/^(?:what(?:'s| is) on my (?:list|tasks)|my tasks|what do I have to do|show (?:me )?my tasks)$/i.test(text)) return { type: 'list' };
+  if (/^(?:remind me for|set (?:a )?reminder (?:for|to))\b/i.test(text) && /\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(text)) return null;
   const finish = phrase => { phrase = phrase.trim().replace(/[.!]+$/, '').trim(); return phrase && phrase.length <= 2000 ? phrase : null; };
   let match = text.match(/^(?:done with|I finished|I completed|check off|complete my)\s+(.+)$/i) || text.match(/^mark\s+(.+?)\s+(?:as\s+)?done$/i);
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'complete', phrase } : null; }
   match = text.match(/^delete my\s+(.+)$/i) || text.match(/^(?:remove|delete)\s+(.+?)\s+from my (?:list|tasks)$/i);
   if (match) { const phrase = finish(match[1]); return phrase ? { type: 'delete', phrase } : null; }
-  match = text.match(/^(?:remind me (?:to|about|of)|set a reminder for)\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
+  match = text.match(/^(?:remind me (?:to|about|of|for)|set (?:a )?reminder (?:for|to))\s+(.+)$/i) || text.match(/^add\s+(.+?)\s+to my (?:list|tasks)$/i) || text.match(/^don't let me forget\s+(?:to\s+)?(.+)$/i) || text.match(/^(?:make|create)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i) || text.match(/^todo\s*:\s*(.+)$/i);
   if (match && finish(match[1])) return { type: 'add', phrase: finish(match[1]) };
   // New noun-style reminder anchors require a due date; keep speculative requests out.
   match = text.match(/^(?:remind me for|reminder for)\s+(.+)$/i);
@@ -122,6 +123,9 @@ exports.parseDue = (text, now = Date.now()) => {
 
 // Deterministic secretary commands. All routing keeps artifact precedence.
 exports.recurrence = text => {
+  if (/\b(?:every\s+2\s+weeks|biweekly)\b/i.test(text)) return 'biweekly';
+  const monthly = String(text).match(/\b(?:monthly|every\s+month)(?:\s+on\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?)?\b/i);
+  if (monthly) return monthly[1] ? (Number(monthly[1]) >= 1 && Number(monthly[1]) <= 31 ? 'monthly:' + Number(monthly[1]) : null) : 'monthly';
   const m = String(text).match(/\bevery\s+(day|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
   if (!m) return null;
   const word = m[1].toLowerCase();
@@ -131,6 +135,10 @@ exports.taskIntent = (messages, blocked = false, now = Date.now()) => {
   const raw = latest(messages).trim();
   if (blocked || raw.length > 12000 || /\b(?:documents?|files?|pdf|docx|word|markdown|html|csv|pages?|websites?|landing\s+page)\b/i.test(raw)) return null;
   const text = raw.replace(/^(?:(?:please|can you|could you|would you|will you)\s+)+/i, '').replace(/[.!?]+$/, '').trim();
+  const query = text.match(/^(?:what(?:'s| is) due (this week|tomorrow)|what(?:'s| is) overdue|what do I have (tomorrow)|what did I finish (this week|this month))$/i);
+  if (query) return {type:'list', query: /finish/i.test(text) ? 'finished:' + (query[3] === 'this month' ? 'month' : 'week') : /overdue/i.test(text) ? 'overdue' : (query[1] || query[2]) === 'tomorrow' ? 'tomorrow' : 'week'};
+  const checkin = text.match(/^(?:ask me|check (?:on me|in with me) about)\s+(.+)$/i);
+  if (checkin && !/\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(checkin[1])) return {type:'add', phrase:checkin[1], checkin:true, recurrence:exports.recurrence(checkin[1])};
   const move = text.match(/^(?:move|reschedule|push|change)\s+(?:my\s+)?(.+?)\s+to\s+(.+)$/i);
   if (move) return {type:'reschedule', phrase:move[1], due:exports.parseDue(move[2], now)};
   const snooze = text.match(/^snooze\s+(?:my\s+)?(.+)$/i);
@@ -144,7 +152,7 @@ exports.taskIntent = (messages, blocked = false, now = Date.now()) => {
   if (result?.type === 'add' && /^(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tonight|tomorrow|next week|in \d+ (?:minutes?|mins?|hours?|days?|weeks?))(?:\s+(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?$/i.test(result.phrase)) {
     const due = exports.parseDue(result.phrase,now); if (due) return {type:'clarify',due};
   }
-  if (result?.type === 'add' && /\bevery\s+(?:month|2\s+weeks)\b/i.test(result.phrase)) return {type:'unsupportedRecurrence'};
+
   if (result?.type === 'add') result.recurrence = exports.recurrence(result.phrase);
   return result;
 };
@@ -156,4 +164,21 @@ exports.pendingAnswer = (text, pending, blocked = false, now = Date.now()) => {
   // A short action phrase is an answer; ordinary conversation drops pending state.
   if (/^(?:I(?:['’]m| am| think| feel| have)|let['’]s|actually|anyway|can you|could you|we |it |that |the weather)\b/i.test(title)) return null;
   return title.replace(/^to\s+/i,'').replace(/[.!]+$/, '').trim();
+};
+// Remove only recognized scheduling suffixes, never executable markup.
+exports.cleanTaskTitle = text => String(text).replace(/\s+\b(?:monthly|biweekly|every\s+(?:2\s+weeks|month|day|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b.*$/i,'').replace(/\s+\b(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tomorrow|tonight|later|next week|in \d+ (?:minutes?|mins?|hours?|days?|weeks?)|at \d{1,2}|by \d{1,2})\b.*$/i,'').trim();
+exports.checkinQuestion = text => {
+  const name = exports.cleanTaskTitle(text).replace(/^about\s+/i,'').replace(/[?.!]+$/,'').trim();
+  if (!name || [...name].length > 170) return null;
+  if (/^how\s+/i.test(name)) return name.replace(/^how\s+(.+?)\s+went$/i,'How did $1 go').replace(/^how/i,'How') + '?';
+  return 'How are things with ' + name + '?';
+};
+exports.recurrenceDue = (phrase, recurrence, now = Date.now()) => {
+  const parsed = exports.parseDue(phrase, now);
+  if (!recurrence?.startsWith('monthly:')) return parsed;
+  const day = Number(recurrence.split(':')[1]), wall = new Date((parsed ? Date.parse(parsed) : now) + 3600000);
+  const hour = parsed ? wall.getUTCHours() : 9, minute = parsed ? wall.getUTCMinutes() : 0;
+  let month = wall.getUTCMonth(), year = wall.getUTCFullYear(), due;
+  do { due = Date.UTC(year,month,Math.min(day,new Date(Date.UTC(year,month+1,0)).getUTCDate()),hour,minute)-3600000; month++; } while (due <= now);
+  return new Date(due).toISOString();
 };

@@ -61,7 +61,7 @@ export function addTask(input, source = 'manual', id = crypto.randomUUID()) {
     // Stable client IDs make uncertain chat/card retries idempotent.
     const existing = current.find(t => t.id === id); if (existing) return existing;
     if (current.filter(t => t.status === 'open').length >= 500) throw Error('You have 500 open tasks. Complete or delete one before adding another.');
-    if (input.recurrence != null) { if (!validRecurrence(input.recurrence)) throw Error('Invalid recurrence.'); fields.recurrence = input.recurrence; }
+    if (input.recurrence != null) { if (!validRecurrence(input.recurrence)) throw Error('Invalid recurrence.'); fields.recurrence = input.recurrence === 'monthly' && fields.due_at ? 'monthly:' + new Date(Date.parse(fields.due_at)+3600000).getUTCDate() : input.recurrence; }
     const created = await request(user, generation, '', 'POST', { id, user_id: user, ...fields, status: 'open', source });
     if (!created[0]) throw Error('The task was not returned. Refresh Tasks to check it.');
     rows = [created[0], ...rows.filter(t => t.id !== id)]; ++readVersion; emit(); return created[0];
@@ -135,10 +135,20 @@ window.addEventListener('online', () => { if (owner) refreshTasks().catch(error 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) refreshTasks().catch(error => emit(error.message)); });
 
 // Pure Lagos scheduling helpers shared by chat cards, Tasks view and tests.
-export const validRecurrence = value => /^(?:daily|weekdays|weekly:[1-7])$/.test(value);
+export const validRecurrence = value => /^(?:daily|weekdays|weekly:[1-7]|biweekly|monthly(?::(?:[1-9]|[12]\d|3[01]))?)$/.test(value);
 export function nextOccurrence(due, recurrence, now = Date.now()) {
   if (!validRecurrence(recurrence) || !Number.isFinite(Date.parse(due))) throw Error('This recurring task needs a valid due date.');
   let wall = new Date(Date.parse(due) + 3600000), target = now + 3600000;
+  if (recurrence.startsWith('monthly')) {
+    const day = Number(recurrence.split(':')[1]) || wall.getUTCDate(), hour = wall.getUTCHours(), minute = wall.getUTCMinutes(), second = wall.getUTCSeconds(), ms = wall.getUTCMilliseconds();
+    let month = wall.getUTCMonth(), year = wall.getUTCFullYear();
+    do { month++; wall = new Date(Date.UTC(year,month,Math.min(day,new Date(Date.UTC(year,month+1,0)).getUTCDate()),hour,minute,second,ms)); } while (wall.getTime() <= target);
+    return new Date(wall.getTime()-3600000).toISOString();
+  }
+  if (recurrence === 'biweekly') {
+    const stride = 14*86400000, start = wall.getTime();
+    return new Date(start + Math.max(1,Math.floor((target-start)/stride)+1)*stride-3600000).toISOString();
+  }
   do { wall.setUTCDate(wall.getUTCDate() + 1); }
   while (wall.getTime() <= target || (recurrence === 'weekdays' && [0,6].includes(wall.getUTCDay())) || (recurrence.startsWith('weekly:') && (wall.getUTCDay() || 7) !== Number(recurrence.slice(7))));
   return new Date(wall.getTime() - 3600000).toISOString();
@@ -154,3 +164,31 @@ export function digestTasks(tasks, now = Date.now()) {
 export const shouldDigest = (tasks, lastDay, now = Date.now()) => lastDay !== lagosDay(now) && digestTasks(tasks,now).length > 0;
 export const tomorrowNine = (now = Date.now()) => { const d = new Date(now+3600000); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+1,8)).toISOString(); };
 export function taskCandidates(phrase, tasks) { return tasks.filter(t => matchTask(phrase,[t])); }
+export const isCheckin = task => typeof task.notes === 'string' && /^\[steep:check-in\](?:\n|$)/.test(task.notes);
+export const longWaiting = (task,now=Date.now()) => task.status === 'open' && Number.isFinite(Date.parse(task.due_at)) && now-Date.parse(task.due_at) > 48*3600000;
+export function completionCopy(task,now=Date.now()) {
+  const phrases = isCheckin(task) ? ['Thanks for checking in.', 'Got it. I am here when you need me.'] : task.recurrence ? ['One more kept promise. Nicely done.', 'That occurrence is done. Steady progress.'] : longWaiting(task,now) ? ['That has been on your mind a while. Glad it is off your list.', 'A little more breathing room. Done.'] : ['Done. One less thing to carry.', 'All done. Nice work.', 'Taken care of.', 'That is off your list.'];
+  const hash = [...String(task.id || task.title)].reduce((n,c)=>(n+c.charCodeAt(0))%997,0);
+  return phrases[hash%phrases.length];
+}
+export function queryTasks(tasks,query,now=Date.now()) {
+  const wall = new Date(now+3600000), start = Date.UTC(wall.getUTCFullYear(),wall.getUTCMonth(),wall.getUTCDate())-3600000;
+  const week = start-((wall.getUTCDay()+6)%7)*86400000, month = Date.UTC(wall.getUTCFullYear(),wall.getUTCMonth(),1)-3600000;
+  return tasks.filter(t => {
+    const due = Date.parse(t.due_at), completed = Date.parse(t.completed_at);
+    if (query?.startsWith('finished:')) return t.status === 'done' && Number.isFinite(completed) && completed >= (query === 'finished:month' ? month : week) && completed <= now;
+    if (t.status !== 'open') return false;
+    if (query === 'overdue') return due < now;
+    if (query === 'tomorrow') return due >= start+86400000 && due < start+2*86400000;
+    if (query === 'week') return due >= week && due < week+7*86400000;
+    return true;
+  }).sort((a,b)=> (Date.parse(query?.startsWith('finished:') ? a.completed_at : a.due_at)||0)-(Date.parse(query?.startsWith('finished:') ? b.completed_at : b.due_at)||0));
+}
+export function wrapTasks(tasks,now=Date.now()) {
+  const today = lagosDay(now);
+  return {completed:tasks.filter(t=>t.status==='done' && Number.isFinite(Date.parse(t.completed_at)) && lagosDay(t.completed_at)===today), slipped:tasks.filter(t=>t.status==='open' && Number.isFinite(Date.parse(t.due_at)) && Date.parse(t.due_at)<now && lagosDay(t.due_at)===today), tomorrow:queryTasks(tasks,'tomorrow',now)};
+}
+export function shouldWrap(tasks,lastDay,now=Date.now()) {
+  const groups = wrapTasks(tasks,now);
+  return new Date(now+3600000).getUTCHours() >= 20 && lastDay !== lagosDay(now) && Object.values(groups).some(xs=>xs.length);
+}

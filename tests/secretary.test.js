@@ -17,14 +17,14 @@ eq(t.taskIntent(msg('complete my Exam prep'),false,now).phrase,'Exam prep');
 eq(t.taskIntent(msg('delete my Exam prep'),false,now).type,'delete');
 eq(t.taskIntent(msg('move my exam to sometime'),false,now).due,null);
 for(const text of ['move my document to Monday','snooze my page','remind me Friday']) eq(t.taskIntent(msg(text),true,now),null);
-eq(t.taskIntent(msg('remind me to pay every month'),false,now).type,'unsupportedRecurrence');
-for(const [text,r] of [['every day','daily'],['every weekday','weekdays'],['every Monday','weekly:1'],['every Sunday','weekly:7'],['every month',null],['every 2 weeks',null]]) eq(t.recurrence('remind me to study '+text),r);
+eq(t.taskIntent(msg('remind me to pay every month'),false,now).type,'add');
+for(const [text,r] of [['every day','daily'],['every weekday','weekdays'],['every Monday','weekly:1'],['every Sunday','weekly:7'],['every month','monthly'],['every 2 weeks','biweekly']]) eq(t.recurrence('remind me to study '+text),r);
 let tasks=[], handler, intervals=[], hidden=false, injected=[], storage=new Map(), fetches=0;
 const windowMock={addEventListener(){}}, documentMock={get hidden(){return hidden;},addEventListener(){}};
 const context={console,Date:Clock,Intl,URL,AbortController,setTimeout,clearTimeout,queueMicrotask,setInterval:fn=>{intervals.push(fn);return 1;},clearInterval(){},crypto:require('crypto').webcrypto,window:windowMock,document:documentMock,
 getSession:()=>({user:{id:'owner'}}),getConfig:async()=>({supabaseUrl:'https://example.test',supabaseKey:'mock'}),authHeaders:async()=>({Authorization:'mock'}),onAuthChange:fn=>fn({user:{id:'owner'}}),logout(){},fetch:async(url,opts)=>{fetches++;let out=tasks;if(opts.method==='PATCH'){const id=new URL(url).searchParams.get('id').slice(3);tasks=tasks.map(x=>x.id===id?{...x,...JSON.parse(opts.body)}:x);out=tasks.filter(x=>x.id===id);}return {ok:true,status:200,json:async()=>out};}};
 let code=fs.readFileSync('js/tasks-data.js','utf8').replace(/^import[^\n]*\n/gm,'').replace(/export /g,'');
-vm.runInNewContext(code+'\nthis.data={taskDueLabel,lagosDay,nextOccurrence,dueTasks,digestTasks,shouldDigest,surfaceKey,tomorrowNine,taskCandidates,refreshTasks,editTask,taskRows};',context);
+vm.runInNewContext(code+'\nthis.data={taskDueLabel,lagosDay,nextOccurrence,dueTasks,digestTasks,shouldDigest,surfaceKey,tomorrowNine,taskCandidates,refreshTasks,editTask,taskRows,isCheckin,longWaiting,completionCopy,queryTasks,wrapTasks,shouldWrap};',context);
 const d=context.data;
 eq(d.nextOccurrence('2026-11-13T09:00:00+01:00','daily',now),'2026-11-14T08:00:00.000Z');
 eq(d.nextOccurrence('2026-11-13T09:00:00+01:00','weekdays',now),'2026-11-16T08:00:00.000Z');

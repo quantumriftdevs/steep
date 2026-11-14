@@ -121,13 +121,13 @@ $('composer').addEventListener('submit', async e => {
   try {
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
     let body = await projectPayload(active, payload);
-    if (taskPending?.chat === active.id && taskPending.user === owner) body = JSON.stringify({...JSON.parse(body),taskPending:{due:taskPending.due,at:taskPending.at}});
+    if (taskPending?.chat === active.id && taskPending.user === owner) body = JSON.stringify({...JSON.parse(body),taskPending:{due:taskPending.due,at:taskPending.at,title:taskPending.title,checkin:taskPending.checkin,recurrence:taskPending.recurrence}});
     taskPending = null;  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
     if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Steep returned an empty reply. Try again.');
-    if (data.taskIntent === 'clarify') taskPending = {chat:active.id,user:owner,due:data.taskDue,at:Date.now()};
+    if (data.taskIntent === 'clarify') taskPending = {chat:active.id,user:owner,due:data.taskDue,title:data.taskPendingTitle,checkin:data.taskCheckin,recurrence:data.taskRecurrence,at:Date.now()};
     const reply = (await taskReply(data, () => !controller.signal.aborted && current === active && !projectDeleted(active) && getSession()?.user?.id === owner)) || (await pageReply(data, controller.signal, text => showError(text, 5000))) || await documentReply(data, active, controller.signal, text => showError(text, 5000)); if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     const message = { role: 'assistant', ...reply, ...(data.research ? { sources: sourceList(data.research.sources) } : {}), ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();

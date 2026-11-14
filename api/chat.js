@@ -1,4 +1,4 @@
-const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue, pendingAnswer } = require('./task-intent');
+const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue, pendingAnswer, cleanTaskTitle, checkinQuestion, recurrenceDue } = require('./task-intent');
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
@@ -61,10 +61,23 @@ module.exports = async (req, res) => {
   const page = candidate && (!requestedDoc || candidate.explicit) ? candidate : null;
   const doc = page ? null : requestedDoc;
   const task = taskIntent(messages, !!(page || doc));
+  const latestTaskText = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+  const waiting = req.body?.taskPending;
+  if (!task && !page && !doc && waiting?.title && typeof waiting.title === 'string' && [...waiting.title].length <= 200 && Number.isFinite(waiting.at) && Date.now() >= waiting.at && Date.now()-waiting.at <= 600000 && /^(?:today|tonight|tomorrow|next |in \d|at \d|by \d|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?::|am|pm))/i.test(latestTaskText.trim())) {
+    const due = parseDue(latestTaskText, Date.now());
+    if (due) return res.status(200).json({taskIntent:'add',taskTitle:waiting.title,taskNotes:waiting.checkin ? '[steep:check-in]' : null,taskDue:due,taskRecurrence:waiting.recurrence,reply:'Got it.'});
+  }
+  if (task?.type === 'add' && task.checkin) {
+    const title = checkinQuestion(task.phrase), due = recurrenceDue(task.phrase,task.recurrence, Date.now());
+    if (!title) return res.status(200).json({taskIntent:'clarify',reply:'What would you like me to check in about?'});
+    if (!due) return res.status(200).json({taskIntent:'clarify',taskPendingTitle:title,taskCheckin:true,taskRecurrence:task.recurrence,reply:'Of course. When should I ask you?'});
+    return res.status(200).json({taskIntent:'add',taskTitle:title,taskNotes:'[steep:check-in]',taskDue:due,taskRecurrence:task.recurrence,reply:'I will check in then.'});
+  }
+  if (task?.type === 'add' && /^(?:set (?:a )?reminder (?:for|to)|remind me for)\b/i.test(latestTaskText.trim()) && !parseDue(task.phrase, Date.now()) && !task.recurrence) return res.status(200).json({taskIntent:'clarify',taskPendingTitle:cleanTaskTitle(task.phrase),reply:'When should I remind you?'});
   if (task?.type === 'clarify') return res.status(200).json({taskIntent:'clarify', taskDue:task.due, reply:"What should I remind you about?"});
   const pendingTitle = !task && pendingAnswer([...messages].reverse().find(m => m.role === 'user')?.content, req.body?.taskPending, !!(page || doc));
   if (pendingTitle) return res.status(200).json({taskIntent:'add', taskTitle:pendingTitle, taskDue:validDue(req.body.taskPending.due), reply:'Preparing your reminder.'});
-  if (task && task.type !== 'add') return res.status(200).json({ taskIntent: task.type, taskPhrase: task.phrase || '', taskDue:task.due || null, reply: task.type === 'list' ? 'Checking your tasks.' : 'Checking for that task.' });
+  if (task && task.type !== 'add') return res.status(200).json({ taskIntent: task.type, taskPhrase: task.phrase || '', taskQuery:task.query || null, taskDue:task.due || null, reply: task.type === 'list' ? 'Checking your tasks.' : 'Checking for that task.' });
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
   if (!groqKey) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add GROQ_API_KEY in Vercel" });
   let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
@@ -101,10 +114,10 @@ module.exports = async (req, res) => {
       const latestUserText = [...messages].reverse().find(m => m.role === 'user')?.content || '';
       const dueNow = Date.now();
       if (output.taskIntent === 'add') {
-        output.taskDue = chooseTaskDue(latestUserText, output.taskDue, dueNow);
+        output.taskDue = recurrenceDue(latestUserText, task?.recurrence, dueNow) || chooseTaskDue(latestUserText, output.taskDue, dueNow);
         if (task?.recurrence) {
           output.taskRecurrence = task.recurrence;
-          output.taskTitle = output.taskTitle.replace(/\s+every\s+(?:day|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*$/i,'').trim();
+          output.taskTitle = cleanTaskTitle(output.taskTitle);
           output.taskDue ||= parseDue('at 9am', dueNow);
           if (task.recurrence === 'weekdays') { while ([0,6].includes(new Date(Date.parse(output.taskDue)+3600000).getUTCDay())) output.taskDue = new Date(Date.parse(output.taskDue)+86400000).toISOString(); }
         }

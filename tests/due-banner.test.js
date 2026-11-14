@@ -13,6 +13,9 @@ module.exports = async function () {
     setAttribute(k,v){this.attrs[k]=v;} setPointerCapture(){} closest(tag){return this.tag===tag?this:null;}
   }
   const ctx={Date,Math,Number,Array,Map,Promise,console,setTimeout:later,clearTimeout:id=>timers.delete(id),dueTasks,surfaceKey,document:{createElement:tag=>new Element(tag)}};
+  const helpers={Date,Intl,onAuthChange(){},window:{addEventListener(){}},document:{addEventListener(){}}};
+  vm.runInNewContext(fs.readFileSync('js/tasks-data.js','utf8').replace(/^import[^\n]*\n/gm,'').replace(/export /g,'')+'\nthis.helpers={isCheckin,longWaiting,completionCopy};',helpers);
+  Object.assign(ctx,helpers.helpers);
   const source=fs.readFileSync('js/tasks.js','utf8').split(String.fromCharCode(10)).filter(line=>!line.startsWith('import ')).join(String.fromCharCode(10)).replace(/export /g,'');
   vm.runInNewContext(source+String.fromCharCode(10)+'this.api={reminderCopy,dueQueue,createDueBanners,showDueBanner};',ctx);
   const {reminderCopy,dueQueue,createDueBanners,showDueBanner}=ctx.api;

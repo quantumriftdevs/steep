@@ -94,6 +94,7 @@ async function run() {
   require('./doc-intent.test')();
   await require('./followup.test')();
   await require('./secretary.test')();
+  await require('./instincts.test')();
   await require('./fetch-page.test')();
   return checks;
 }

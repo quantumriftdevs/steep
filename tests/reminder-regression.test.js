@@ -13,13 +13,13 @@ module.exports = async function () {
     eq(task.taskIntent(messages(text),true,now),null);
   }
   for (const text of ['remind me to email Ada in 2 mins','remind me about school in 2 mins','remind me of school in 2 mins','set a reminder for school in 2 mins']) eq(task.taskIntent(messages(text),false,now).type,'add');
-  for (const text of ['set reminder for school in 2 mins','set a reminder to call Ada in 2 mins','remind me for school']) eq(task.taskIntent(messages(text),false,now),null);
+  for (const text of ['set reminder for school in 2 mins','set a reminder to call Ada in 2 mins','remind me for school']) eq(task.taskIntent(messages(text),false,now).type,"add");
   for (const unit of ['min','mins','minute','minutes']) eq(task.parseDue('school in 2 '+unit,now),'2026-11-13T15:17:38+01:00');
   eq(task.parseDue('in 36501 mins',now),null);
   eq(task.parseDue('in 2 mins',NaN),null);
   for (const text of ['remind me in 2 mins','remind me for in 2 mins','reminder for in 2 mins','reminder for tomorrow']) eq(task.taskIntent(messages(text),false,now).type,'clarify');
   for (const word of ['maybe','might','someday','perhaps','eventually','wish','hypothetical']) eq(task.taskIntent(messages('reminder for '+word+' school in 2 mins'),false,now)?.type === 'add',false);
-  for (const text of ['remind me for school','reminder for school','remind me for a PDF tomorrow','reminder for a website tomorrow']) eq(task.taskIntent(messages(text),false,now),null);
+  for (const text of ['reminder for school','remind me for a PDF tomorrow','reminder for a website tomorrow']) eq(task.taskIntent(messages(text),false,now),null);
   const source = fs.readFileSync(require.resolve('../api/chat'),'utf8');
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
   async function chat(text, modelReply) {
@@ -49,9 +49,9 @@ module.exports = async function () {
   const wellFormed=(begin,end)=>'Good plan.\n'+begin+'\n'+json+'\n'+end;
   const suggestion=await chat("I'll go to school in 2 mins",wellFormed);
   eq(suggestion.reply,'Good plan.');eq(suggestion.taskSuggest.title,'School reminder');eq(suggestion.taskIntent,undefined);
-  // An explicit but still-unrecognized phrasing must not turn a suggestion into ADD.
+  // The newly recognized anchor now prepares an explicit ADD, never a suggestion.
   const missed=await chat('set a reminder to call Ada in 2 mins',wellFormed);
-  eq(missed.taskSuggest.title,'School reminder');eq(missed.taskIntent,undefined);
+  eq(missed.taskTitle,'School reminder');eq(missed.taskIntent,'add');eq(missed.taskSuggest,undefined);
   const ineligible=await chat('Hello there',wellFormed);
   eq(ineligible.reply,'Good plan.');eq(ineligible.taskSuggest,undefined);eq(ineligible.taskIntent,undefined);
   const add=await chat('Remind me for school in 2 mins',(begin,end)=>begin+'\n'+json+'\n'+end);

@@ -2,7 +2,7 @@ import { getSession } from './auth.js';
 import { requireAuth } from './guest.js';
 import { projectNav, leaveProjects } from './projects-context.js';
 import { projectRow } from './projects-icons.js';
-import { taskRows, refreshTasks, onTasksChange, addTask, editTask, deleteTask, matchTask, taskGroup, taskDueLabel, taskCandidates, dueTasks, digestTasks, shouldDigest, surfaceKey, lagosDay, tomorrowNine } from './tasks-data.js';
+import { taskRows, refreshTasks, onTasksChange, addTask, editTask, deleteTask, matchTask, taskGroup, taskDueLabel, taskCandidates, dueTasks, digestTasks, shouldDigest, surfaceKey, lagosDay, tomorrowNine, isCheckin, longWaiting, completionCopy, queryTasks, wrapTasks, shouldWrap } from './tasks-data.js';
 const node = (tag, text, cls) => { const el = document.createElement(tag); if (text) el.textContent = text; if (cls) el.className = cls; return el; };
 function button(text, action) { const b = node('button', text); b.type = 'button'; b.onclick = action; return b; }
 function gated(action, notice) {
@@ -48,9 +48,10 @@ export function setupTasks(api) {
         toggle.setAttribute('aria-label', (task.status === 'done' ? 'Reopen ' : 'Complete ') + task.title);
         toggle.append(node('span', task.status === 'done' ? '☑' : '☐', 'task-check'), text);
         const details = node('div', '', 'task-details'); details.append(node('small', taskDueLabel(task.due_at)));
-        if (task.notes) details.append(node('p', task.notes));
+        if (task.notes) { const note = isCheckin(task) ? task.notes.replace(/^\[steep:check-in\]\n?/, '') : task.notes; if (note) details.append(node('p', note)); }
+        if (isCheckin(task)) details.append(node('small', 'Check-in'));
         const controls = node('div', '', 'task-controls');
-        controls.append(button('Edit', () => gated(() => { draft = { id: task.id, title: task.title, notes: task.notes || '', due: localDue(task.due_at) }; api.refresh(); }, notice)), button('Delete', () => gated(async () => { if (!confirm('Delete “' + task.title + '”?')) return; await deleteTask(task.id); notice(''); }, notice)));
+        controls.append(button('Edit', () => gated(() => { draft = { id: task.id, title: task.title, notes: isCheckin(task) ? task.notes.replace(/^\[steep:check-in\]\n?/, '') : task.notes || '', checkin: isCheckin(task), due: localDue(task.due_at) }; api.refresh(); }, notice)), button('Delete', () => gated(async () => { if (!confirm('Delete “' + task.title + '”?')) return; await deleteTask(task.id); notice(''); }, notice)));
         row.append(toggle, details, controls); host.append(row);
       }
       list.append(host);
@@ -81,7 +82,7 @@ export function setupTasks(api) {
       const due = field(form, 'Due date and time (optional, Lagos)', 'datetime-local','due');
       const submit = button(draft.id ? 'Save changes' : 'Add task'); submit.type = 'submit';
       form.onsubmit = event => {
-        event.preventDefault(); const values = { title: title.value, notes: notes.value, due_at: isoDue(due.value) }, id = draft.id;
+        event.preventDefault(); const values = { title: title.value, notes: draft.checkin ? '[steep:check-in]' + (notes.value ? '\n' + notes.value : '') : notes.value, due_at: isoDue(due.value) }, id = draft.id;
         draft.createId ||= crypto.randomUUID(); const createId = draft.createId;
         gated(async () => { submit.disabled = true; try {
           if (id) await editTask(id, values); else await addTask(values, 'manual', createId);
@@ -99,7 +100,6 @@ export async function taskReply(data, isCurrent = () => true) {
   if (!data.taskIntent) return null;
   if (!getSession()) throw Error('Please sign in to manage tasks.');
   if (!isCurrent()) return null;
-  if (data.taskIntent === 'unsupportedRecurrence') return {content:'I can repeat tasks every day, every weekday or every named weekday. Monthly and every two weeks are not supported yet; no task was added.'};
   if (data.taskIntent === 'clarify') return {content:data.reply};
   if (data.taskIntent === 'add') {
     const task = await addTask({ title: data.taskTitle, notes: data.taskNotes, due_at: data.taskDue, recurrence: data.taskRecurrence }, 'chat', data.taskId || (data.taskId = crypto.randomUUID()));
@@ -107,7 +107,11 @@ export async function taskReply(data, isCurrent = () => true) {
   }
   const rows = await refreshTasks(); if (!isCurrent()) return null;
   const open = rows.filter(t => t.status === 'open');
-  if (data.taskIntent === 'list') return { content: open.length ? 'Your open tasks:\n' + open.map(t => '- ' + t.title + (t.due_at ? ' — ' + taskDueLabel(t.due_at) : '')).join('\n') : 'Your list is clear — no open tasks.' };
+  if (data.taskIntent === 'list') {
+    const selected = queryTasks(rows,data.taskQuery), finished = data.taskQuery?.startsWith('finished:');
+    const label = finished ? 'Completed ' + (data.taskQuery === 'finished:month' ? 'this month' : 'this week') : ({overdue:'Overdue',tomorrow:'Due tomorrow',week:'Due this week'}[data.taskQuery] || 'Your open tasks');
+    return {content:label + (selected.length ? ':\n' + selected.map(t=>'- ' + t.title + (t.due_at ? ' - ' + taskDueLabel(t.due_at) : '')).join('\n') : ': nothing here.') + (finished ? '\nBased on saved completed_at timestamps. Reopened/deleted tasks and recurring occurrences are not a completion log.' : '')};
+  }
   const candidates = taskCandidates(data.taskPhrase, open);
   if (candidates.length > 1) return {content:'Which task did you mean?\n' + candidates.slice(0,8).map(t => '- ' + t.title).join('\n')};
   const task = candidates[0];
@@ -116,7 +120,7 @@ export async function taskReply(data, isCurrent = () => true) {
     if (!data.taskDue) return {content:'What date and time should I move "' + task.title + '" to? Please repeat the move command with a date.'};
     const moved = await editTask(task.id, {due_at:data.taskDue}); return {content:'Moved "' + moved.title + '" to ' + taskDueLabel(moved.due_at) + '.'};
   }
-  if (data.taskIntent === 'complete') { const done = await editTask(task.id, { status: 'done' }); return { content: done.status === 'open' ? 'Completed this occurrence: ' + task.title + '. Next: ' + taskDueLabel(done.due_at) : 'Marked done: ' + task.title + '.' }; }
+  if (data.taskIntent === 'complete') { const done = await editTask(task.id, { status: 'done' }); return { content: done.status === 'open' ? completionCopy(task) + ' Next: ' + taskDueLabel(done.due_at) : completionCopy(task) + ' ' + task.title }; }
   if (data.taskIntent === 'delete') { await deleteTask(task.id); return { content: 'Removed: ' + task.title + '.' }; }
   return null;
 }
@@ -154,9 +158,11 @@ export function taskCard(message, save, notice) {
 
 // Due-event state is deliberately separate from legacy one-shot due-card history.
 export const REMINDER_MS = 5 * 60000;
-export function reminderCopy(title, count = 0) {
+export function reminderCopy(title, count = 0, task = null, now = Date.now()) {
+  const waiting = task && longWaiting(task,now) ? " This one's been waiting a while - want to reschedule or let it go?" : '';
+  if (task && isCheckin(task)) return title + waiting;
   const phrases = ["It's time: ", "Here's that reminder again: ", "A gentle nudge: ", "Whenever you're ready: "];
-  return phrases[count % phrases.length] + title;
+  return phrases[count % phrases.length] + title + waiting;
 }
 export function dueQueue(rows, state = {}, now = Date.now()) {
   return dueTasks(rows, {}, now).filter(task => {
@@ -230,7 +236,7 @@ export function createDueBanners(io) {
     const key = surfaceKey(task), count = state[key]?.reminderCount || 0;
     state[key] = {lastShown:now(), nextAt:now()+REMINDER_MS, reminderCount:count+1, acknowledged:false}; persist();
     const item = {task, key, busy:false}; active = item;
-    item.view = io.show(task, reminderCopy(task.title, count), {okay:() => okay(item), swipe:() => swipe(item)});
+    item.view = io.show(task, reminderCopy(task.title, count, task, now()), {okay:() => okay(item), swipe:() => swipe(item)});
   }
   return {tick, dispose() { disposed = true; reset(null); }};
 }
@@ -254,7 +260,7 @@ export function showDueBanner(host, task, copy, actions) {
   el.onpointercancel = restore; el.onlostpointercapture = restore;
   return {
     remove:() => el.remove(), pending:value => { okay.disabled = value; },
-    success:() => { okay.disabled = true; text.textContent = 'All done: ' + task.title; },
+    success:() => { okay.disabled = true; text.textContent = completionCopy(task); },
     hide:swiped => { restore(); el.classList.add(swiped ? 'is-swiped' : 'is-fading'); }
   };
 }
@@ -283,10 +289,21 @@ export function setupTaskSecretary(api) {
       const rows = taskRows(), now = Date.now(), digestKey = 'steep:digest:' + user;
       if (shouldDigest(rows,read(digestKey),now)) {
         const today = digestTasks(rows,now);
-        api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at)),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
+        api.inject({role:'assistant',content:'Here is your day at a glance.',taskDigest:{title:'Today: ' + today.length + ' tasks',items:[...today.slice(0,5).map(t => t.title + ' — ' + taskDueLabel(t.due_at) + (longWaiting(t,now) ? " - this one's been waiting a while; want to reschedule or let it go?" : '')),...(today.length > 5 ? ['and ' + (today.length-5) + ' more in Tasks'] : [])]}},true);
         write(digestKey,lagosDay(now));
       }
       write(digestKey,lagosDay(now));
+      const wrapKey = 'steep:wrap:' + user;
+      if (shouldWrap(rows,read(wrapKey),now)) {
+        const groups = wrapTasks(rows,now), items = [];
+        for (const [key,label] of [['completed','Finished today'],['slipped','Rolled past due today'],['tomorrow','Tomorrow']]) {
+          items.push(label + ': ' + groups[key].length);
+          items.push(...groups[key].slice(0,5).map(t=>t.title + (key === 'tomorrow' ? ' - ' + taskDueLabel(t.due_at) : '')));
+          if (groups[key].length>5) items.push('More in Tasks.');
+        }
+        api.inject({role:'assistant',content:'A quiet look back, and a little space for tomorrow. Recurring occurrences are not included in finished totals.',taskDigest:{title:'Your evening wrap',items}},true);
+        write(wrapKey,lagosDay(now));
+      }
     } catch (error) { api.notice(error.message); } finally { checking = false; }
   }
   const unsubscribe = onTasksChange(() => { banners.tick(); queueMicrotask(() => tick()); });
