@@ -25,7 +25,7 @@ module.exports = async function () {
   async function chat(text, modelReply) {
     let output, status, count=0;
     const module = {exports:{}};
-    const imports = name => name === './task-intent' ? task : name === './doc-intent' ? require('../api/doc-intent') : name === './page-intent' ? require('../api/page-intent') : name === './research' ? {research:async()=>null} : name === './personality' ? {prompt:'Normal chat'} : {projectPrompt:async()=> 'Normal chat',providerBody:JSON.stringify};
+    const imports = name => name === './task-intent' ? task : name === './doc-intent' ? require('../api/doc-intent') : name === './page-intent' ? require('../api/page-intent') : name === './research' ? {research:async()=>null} : name === '../server/personality' ? {prompt:'Normal chat'} : {projectPrompt:async()=> 'Normal chat',providerBody:JSON.stringify};
     vm.runInNewContext(source,{module,require:imports,process:{env:{GROQ_API_KEY:'mock'}},Buffer,Date:Clock,fetch:async(url,options)=> {
       count++;
       const system=JSON.parse(options.body).messages[0].content;

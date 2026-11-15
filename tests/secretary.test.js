@@ -49,7 +49,7 @@ async function run(){
  tasks=[{...original,recurrence:'weekdays'}];await d.editTask('old',{status:'done'},original.due_at);eq(tasks[0].status,'open');eq(tasks[0].due_at,'2026-11-16T08:00:00.000Z');
  tasks=[{...original}];await d.editTask('old',{status:'done'},original.due_at);eq(tasks[0].status,'done');
  let modelCalls=0, output;
- const imports=n=>n==='./task-intent'?{...t,taskIntent:(m,b)=>t.taskIntent(m,b,now),pendingAnswer:(text,p,b)=>t.pendingAnswer(text,p,b,now)}:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>null}:n==='./personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
+ const imports=n=>n==='./task-intent'?{...t,taskIntent:(m,b)=>t.taskIntent(m,b,now),pendingAnswer:(text,p,b)=>t.pendingAnswer(text,p,b,now)}:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>null}:n==='../server/personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
  const module={exports:{}};
  vm.runInNewContext(fs.readFileSync('api/chat.js','utf8'),{module,require:imports,process:{env:{GROQ_API_KEY:'mock'}},Buffer,Date:Clock,fetch:async()=>{modelCalls++;throw Error('Unexpected model call');},AbortController,AbortSignal,setTimeout,clearTimeout,console});
  for (const [text,kind,p] of [['remind me Friday','clarify'],['bring snacks','add',pending],['move my Exam prep to Monday','reschedule'],['snooze Exam prep','reschedule'],['complete my Exam prep','complete'],['delete my Exam prep','delete']]) {

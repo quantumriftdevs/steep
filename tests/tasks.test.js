@@ -69,7 +69,7 @@ async function run() {
   equal(api.taskGroup({status:'open',due_at:'2026-11-13T00:30:00+01:00'},Date.parse('2026-11-12T23:00:00Z')),'Today');
   rows=Array.from({length:500},(_,i)=>({id:String(i),title:'Task '+i,status:'open'}));
   let capped=false; try { await api.addTask({title:'Extra'},'manual','extra'); } catch(e) { capped=/500/.test(e.message); } equal(capped,true);
-  const imports = name => name === './task-intent' ? task : name === './doc-intent' ? doc : name === './page-intent' ? page : name === './research' ? {research:async()=>null} : name === './personality' ? {prompt:'Normal chat'} : {projectPrompt:async()=> 'Normal chat',providerBody: body=>JSON.stringify(body)};
+  const imports = name => name === './task-intent' ? task : name === './doc-intent' ? doc : name === './page-intent' ? page : name === './research' ? {research:async()=>null} : name === '../server/personality' ? {prompt:'Normal chat'} : {projectPrompt:async()=> 'Normal chat',providerBody: body=>JSON.stringify(body)};
   for (const [text, expected] of [['my tasks','list'],['I finished email Ada','complete'],['delete email Ada from my list','delete'],['remind me to email Ada Friday','add'],["I'll send the proposal Thursday",'suggest'],['Hello there','normal']]) {
     let count=0, output, status;
     const module={exports:{}};

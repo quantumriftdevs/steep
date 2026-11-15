@@ -2,7 +2,7 @@ const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSugge
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
-const { prompt } = require('./personality'); const { projectPrompt, providerBody } = require('./project-context');
+const { prompt } = require('../server/personality'); const { projectPrompt, providerBody } = require('../server/project-context');
 
 const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[attachment removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[attachment removed]');
 

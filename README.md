@@ -15,7 +15,7 @@ Steep is an AI assistant for TikTok creators: a friendly place to talk niches, R
 - `js/messages.js` — message bubbles and word-by-word display.
 - `api/chat.js` — Groq request and reply endpoint.
 - `api/status.js` — reports whether the API key is configured.
-- `api/personality.js` — editable system prompt for Steep.
+- `server/personality.js` — editable system prompt for Steep.
 - `README.md` — project map and deployment steps.
 
 ## Deploy from your phone

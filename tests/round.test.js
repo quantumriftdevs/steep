@@ -33,7 +33,7 @@ module.exports = async function roundTests() {
   for(const text of ['I feel ill','ill send it','im sending it',"I'll send it?","Maybe I'll send it",'I might send it someday',"I wish I'll send it"]) equal(task.taskSuggestionEligible(messages(text)),false);
   const p=task.taskProtocol();
   equal(task.taskAddResult(p.begin+'\n'+JSON.stringify({title:'Send it'})+'\n'+p.end,p).reply,"I couldn't save that task - please try again.");
-  const imports=name=>name==='./task-intent'?task:name==='./doc-intent'?doc:name==='./page-intent'?page:name==='./research'?{research:async()=>null}:name==='./personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
+  const imports=name=>name==='./task-intent'?task:name==='./doc-intent'?doc:name==='./page-intent'?page:name==='./research'?{research:async()=>null}:name==='../server/personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
   const clock=Date.parse(now);
   class FixedDate extends Date {constructor(...a){super(...(a.length?a:[clock]));}static now(){return clock;}}
   const context={module:{exports:{}},require:imports,Date:FixedDate,process:{env:{GROQ_API_KEY:'mock'}},Buffer,AbortController,AbortSignal,setTimeout,clearTimeout};

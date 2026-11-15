@@ -30,7 +30,7 @@ eq(d.queryTasks(rows,'overdue',now).map(t=>t.id),['old','today']);eq(d.queryTask
 eq(d.longWaiting(row('a',new Date(now-48*3600000).toISOString()),now),false);eq(d.longWaiting(row('a',new Date(now-48*3600000-1).toISOString()),now),true);
 const evening=Date.parse('2026-11-13T20:00+01:00');eq(d.shouldWrap(rows,null,evening-1),false);eq(d.shouldWrap(rows,null,evening),true);eq(d.shouldWrap(rows,'2026-11-13',evening),false);eq(d.shouldWrap([],null,evening),false);eq(d.wrapTasks(rows,evening).completed.map(t=>t.id),['finished']);eq(d.wrapTasks(rows,evening).slipped.map(t=>t.id),['today']);eq(d.shouldWrap(rows,null,Date.parse('2026-11-13T23:00Z')),false);
 const copies=new Set();for(let i=0;i<12;i++)copies.add(d.completionCopy(row(String(i),null),now));eq(copies.size,4);eq(d.completionCopy(row('r',null,{recurrence:'daily'}),now).length>0,true);
-let output,calls=0;const module={exports:{}};const imports=n=>n==='./task-intent'?t:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>{throw Error('No research');}}:n==='./personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:JSON.stringify};
+let output,calls=0;const module={exports:{}};const imports=n=>n==='./task-intent'?t:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>{throw Error('No research');}}:n==='../server/personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:JSON.stringify};
 vm.runInNewContext(fs.readFileSync('api/chat.js','utf8'),{module,require:imports,process:{env:{}},Date:Clock,Buffer,AbortController,AbortSignal,setTimeout,clearTimeout,fetch:async()=>{calls++;throw Error('No network');}});
 async function ask(text,pending){output=null;const res={setHeader(){},status(){return this;},json(x){output=x;return x;}};await module.exports({method:'POST',headers:{},body:{messages:msg(text),taskPending:pending}},res);return output;}
 let out=await ask('ask me how the meeting went tomorrow at 8');eq(out.taskIntent,'add');eq(out.taskTitle,'How did the meeting go?');eq(out.taskDue,'2026-11-14T08:00:00+01:00');eq(out.taskNotes,'[steep:check-in]');
@@ -39,7 +39,7 @@ for(const text of ['set reminder for rent','set a reminder to pay rent','remind 
 out=await ask('tomorrow at 8',{title:'Pay rent',at:now});eq(out.taskTitle,'Pay rent');out=await ask('tomorrow at 8',{title:'Pay rent',at:now-600001});eq(out.taskIntent||null,null);eq(calls,0);
 const ui={...ctx,...d};vm.runInNewContext(fs.readFileSync('js/tasks.js','utf8').replace(/^import[^\n]*\n/gm,'').replace(/export /g,'')+'\nthis.reminderCopy=reminderCopy;',ui);
 eq(ui.reminderCopy('How did it go?',0,row('c','2026-11-13T09:00+01:00',{notes:'[steep:check-in]'}),now),'How did it go?');eq(ui.reminderCopy('Old task',0,rows[0],now).includes('reschedule or let it go'),true);eq(ui.reminderCopy('Fresh',0,rows[1],now).includes('waiting a while'),false);
-eq(fs.readFileSync('api/personality.js','utf8').includes('AI-powered task manager and personal assistant'),true);
+eq(fs.readFileSync('server/personality.js','utf8').includes('AI-powered task manager and personal assistant'),true);
 for (const text of ['set reminder for maybe call Ada', 'set a reminder to someday travel', 'remind me for perhaps a holiday']) eq(t.taskIntent(msg(text),false,now),null);
 eq(d.isCheckin({notes:'[steep:check-in]\nPersonal notes'}),true);
 eq(d.isCheckin({notes:'[steep:check-in]not a marker'}),false);

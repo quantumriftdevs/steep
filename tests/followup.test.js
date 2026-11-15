@@ -26,7 +26,7 @@ for(const [text,due] of [['today at 6am','2026-11-12T06:00:00+01:00'],['today at
 const source=fs.readFileSync(require.resolve('../api/chat.js'),'utf8');
 const passage='Steep has built-in tasks and reminders.';
 class FixedDate extends Date {constructor(...a){super(...(a.length?a:[now]));}static now(){return now;}}
-const imports=n=>n==='./task-intent'?task:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>null}:n==='./personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
+const imports=n=>n==='./task-intent'?task:n==='./doc-intent'?doc:n==='./page-intent'?page:n==='./research'?{research:async()=>null}:n==='../server/personality'?{prompt:'chat'}:{projectPrompt:async()=> 'chat',providerBody:body=>JSON.stringify(body)};
 async function run(){
     for(const [text,normal] of [['I have a meeting by 6 today',true],['Hello',true],['remind me about my 6pm meeting',false],['Create a document about tea',false],['Build a website about tea',false]]) {
         let system='',output,calls=0;
