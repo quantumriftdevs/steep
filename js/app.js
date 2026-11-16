@@ -1,3 +1,4 @@
+import { createTaskOffer, offerRequest } from './task-offer.mjs';
 import { messageCard, progressCard } from './cards.js';
 import { clientReply } from './card-flows.js';
 import { setupTasks, taskReply, taskCard, setupTaskSecretary } from './tasks.js';
@@ -19,6 +20,8 @@ const sidebar = $('sidebar'), scrim = $('scrim'), error = $('error');
 let chats = liveChats(loadChats()), current = chats[0] || newChat(), busy = false;
 if (!chats.length) chats = [current];
 let taskPending = null;
+const taskOffer = createTaskOffer();
+const offerScope = () => ({chat:current.id,user:getSession()?.user?.id,away:projectNav.tab === 'tasks' || projectNav.overview});
 const ghost = setupGhost();
 const ghostTitle = document.createElement('span'); ghostTitle.className = 'ghost-title';
 ghostTitle.textContent = 'Ghost mode'; ghostTitle.hidden = true;
@@ -81,6 +84,7 @@ async function chatMenu(chat) { const run = fn => () => { if (busy || !chats.inc
   tasks.update(); actions.update(temporary || projectNav.overview || projectNav.tab === 'tasks' ? { ...current, messages: [] } : current, busy);
 }
 function render(welcome = false) {
+  taskOffer.sync(offerScope());
   if (taskPending && (taskPending.chat !== current.id || taskPending.user !== getSession()?.user?.id || projectNav.tab === 'tasks' || projectNav.overview)) taskPending = null;
   const top = thread.scrollTop, following = follow; stopSpeech(); renderList(); messages.replaceChildren(); if (tasks.render(messages) || projects.render(messages)) { messages.append(error); follow = following; if (following) scrollDown(); else thread.scrollTop = top; return; }
   if (current.temporary && !current.messages.length) {
@@ -124,10 +128,12 @@ $('composer').addEventListener('submit', async e => {
   let progress; const steps=[]; const phase = text => {steps.push(text); if (!progress) progress=progressCard(typing,'Taking care of it',text); else progress.step(text); scrollDown();};
   if (userText.includes('https://') || userText.includes('http://')) phase('Requesting page reading...');
   try {
+    const answer = taskOffer.consume(prepared.attachment ? '' : userText, offerScope());
     const payload = modelPayload(current.messages); save(); if (payload.notice || prepared.notice) showError([prepared.notice, payload.notice].filter(Boolean).join(' '));
     let body = await projectPayload(active, payload);
     if (taskPending?.chat === active.id && taskPending.user === owner) body = JSON.stringify({...JSON.parse(body),taskPending:{due:taskPending.due,at:taskPending.at,title:taskPending.title,checkin:taskPending.checkin,recurrence:taskPending.recurrence}});
-    taskPending = null;  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     const response = await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
+    taskPending = null;  if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;     body = offerRequest(body, answer);
+    const response = answer.type === 'decline' ? new Response(JSON.stringify({reply:'No problem. I will leave it.'}), {status:200}) : await modelRequest(body, error, () => current === active && !projectDeleted(active) && getSession()?.user?.id === owner, waiting => { typing.hidden = waiting; }, controller.signal);
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; if (response.status === 401) { logout(); throw new Error('Please sign in again to keep chatting.'); }
     const data = await response.json(); if (controller.signal.aborted) return; if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
     if (!response.ok) throw new Error(data.error || 'Something went wrong. Try again.');
@@ -137,6 +143,7 @@ $('composer').addEventListener('submit', async e => {
     if (reply.cardOutcome) reply.cardOutcome.steps=steps;
     else if(progress && !data.taskIntent) reply.cardOutcome={state:'blocked',kind:'Web reading',title:'Page reading',steps,details:'No reading result was returned. The response is kept below.'}; if (controller.signal.aborted || current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return; typing.classList.remove('typing'); if (!reply.cardOutcome) await animate(typing, reply.content, scrollDown, controller.signal); if (controller.signal.aborted) return;
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;
+    taskOffer.arm(data.taskOffer, offerScope());
     const message = { role: 'assistant', ...reply, ...(data.research ? { sources: sourceList(data.research.sources) } : {}), ...(data.taskSuggest ? { taskSuggest: data.taskSuggest } : {}) }; current.messages.push(message); markFreshImages(message); save();
   } catch (err) {
     if (current !== active || projectDeleted(active) || getSession()?.user?.id !== owner) return;

@@ -102,6 +102,17 @@ export async function taskReply(data, isCurrent = () => true) {
   if (!data.taskIntent) return null;
   if (!getSession()) throw Error('Please sign in to manage tasks.');
   if (!isCurrent()) return null;
+  if (data.taskIntent === 'batch') {
+    const lines = [];
+    for (const item of (data.taskBatch || []).slice(0,8)) {
+      if (!isCurrent()) break;
+      try {
+        const saved = await taskReply(item, isCurrent);
+        if (saved?.taskAdded) lines.push('Added: ' + saved.taskAdded.title + '.');
+      } catch (error) { lines.push('Not added: ' + item.taskTitle + '. ' + error.message); }
+    }
+    return {content:lines.join('\n') || data.reply};
+  }
   if (data.taskIntent === 'clarify') return {content:data.reply,taskQuestion:true};
   if (data.taskIntent === 'add') {
     const task = await addTask({ title: data.taskTitle, notes: data.taskNotes, due_at: data.taskDue, recurrence: data.taskRecurrence }, 'chat', data.taskId || (data.taskId = crypto.randomUUID()));
