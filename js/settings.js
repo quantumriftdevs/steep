@@ -1,3 +1,4 @@
+import './whatsapp-settings.js';
 import './press.js';
 import { profileName, saveProfileName } from './profile.js';
 import { checkConnection } from './status.js';
