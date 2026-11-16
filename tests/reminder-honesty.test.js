@@ -90,10 +90,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  const setupStart=src.indexOf('export function setupTasks'),setupEnd=src.indexOf('\nfunction presentationRows',setupStart),helpers=src.slice(src.indexOf('const node ='),src.indexOf('const localDue'));
  vm.runInNewContext(helpers+src.slice(setupStart,setupEnd).replace('export ','')+'\nthis.setup=setupTasks;',ui);
  ui.setup({busy:()=>false,notice(){}});const tab=nav.children[0],badge=tab.children[0];eq(tab.id,'tasks-tab');eq(badge.hidden,true);eq(badge.textContent,'');
- badgeRows=[{id:'one',status:'open'}];change();eq(badge.textContent,'(1)');eq(badge.hidden,false);eq(badge.attrs['aria-label'],'1 open tasks');
- badgeRows.push({id:'two',status:'open'},{id:'done',status:'done'});change();eq(badge.textContent,'(2)');
- badgeRows[0].status='done';change();eq(badge.textContent,'(1)');badgeRows[1].status='done';change();eq(badge.hidden,true);eq(badge.textContent,'');
- badgeRows[0].status='open';change();eq(badge.textContent,'(1)');badgeRows=[];change();eq(badge.hidden,true);
+ badgeRows=[{id:'one',status:'open'}];change();eq(badge.textContent,'1');eq(badge.hidden,false);eq(badge.attrs['aria-label'],'1 open tasks');
+ badgeRows.push({id:'two',status:'open'},{id:'done',status:'done'});change();eq(badge.textContent,'2');
+ badgeRows[0].status='done';change();eq(badge.textContent,'1');badgeRows[1].status='done';change();eq(badge.hidden,true);eq(badge.textContent,'');
+ badgeRows[0].status='open';change();eq(badge.textContent,'1');badgeRows=[];change();eq(badge.hidden,true);
  badgeRows=[{status:'open'}];badgeUser=null;change();eq(badge.hidden,true);eq(badge.textContent,'');
  badgeUser={user:{id:'other'}};badgeRows=[];change();eq(badge.hidden,true);eq(badge.attrs['aria-label'],'0 open tasks');
 
