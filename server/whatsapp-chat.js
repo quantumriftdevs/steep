@@ -1,4 +1,4 @@
-const {claim,clip,history,COOLDOWN}=require('./whatsapp-memory');
+const {read,append,clip,history}=require('./whatsapp-memory');
 const context=require('./whatsapp-context');
 const FALLBACK='I lost my train of thought for a moment 🌿 Please try that again shortly.';
 async function deliver(to,text) {
@@ -17,9 +17,8 @@ async function deliver(to,text) {
 }
 async function chat({db,link,wa,body,tasks,now}) {
   let state;
-  try { state=await claim(db,link.user_id,now); }
+  try { state=await read(db,link.user_id); }
   catch {console.error('whatsapp-chat: memory unavailable');return FALLBACK;}
-  if(!state) return 'Give me about 25 seconds between chat replies 🌿 Then send that again.';
   const user={role:'user',content:clip(body)};
   let answer=FALLBACK, generated=false;
   try {
@@ -36,11 +35,8 @@ async function chat({db,link,wa,body,tasks,now}) {
   try {
     const [live]=await db('whatsapp_links',{user_id:'eq.'+link.user_id,id:'eq.'+link.id,status:'eq.linked',wa_id:'eq.'+wa,revision:'eq.'+link.revision,select:'id'});
     if(!live) return null;
-    const filter={user_id:'eq.'+link.user_id,revision:'eq.'+state.revision};
-    const locked=await db('whatsapp_chat_state',filter,'PATCH',{next_reply_at:new Date(Date.now()+COOLDOWN).toISOString()});
-    if(!locked.length) return null;
     if(await deliver(wa,answer)) {
-      await db('whatsapp_chat_state',filter,'PATCH',{messages:history([...state.messages,user,...(generated?[{role:'assistant',content:answer}]:[])])});
+      await append(db,link.user_id,[user,...(generated?[{role:'assistant',content:answer}]:[])]);
     }
   } catch {console.error('whatsapp-chat: state unavailable');}
   return null;

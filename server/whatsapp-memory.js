@@ -1,5 +1,5 @@
 const {randomUUID}=require('node:crypto');
-const COOLDOWN=25000, LIMIT=12000, TURNS=12;
+const LIMIT=12000, TURNS=12;
 function clip(value,n=1500) {
   const chars=Array.from(typeof value==='string'?value.trim():'');
   if(chars.length<=n) return chars.join('');
@@ -17,12 +17,23 @@ function history(rows) {
   }
   return result;
 }
-async function claim(db,user,now) {
-  const [old]=await db('whatsapp_chat_state',{user_id:'eq.'+user,select:'*',limit:'1'});
-  if(old && Date.parse(old.next_reply_at)>now) return null;
-  const row={user_id:user,revision:randomUUID(),next_reply_at:new Date(now+COOLDOWN).toISOString(),messages:history(old?.messages)};
-  const rows=old ? await db('whatsapp_chat_state',{user_id:'eq.'+user,revision:'eq.'+old.revision,next_reply_at:'lte.'+new Date(now).toISOString()},'PATCH',row)
-    : await db('whatsapp_chat_state',{on_conflict:'user_id'},'POST',row,'resolution=ignore-duplicates,return=representation');
-  return rows.length?row:null;
+// Reads never reserve a time slot: each inbound message may complete immediately.
+async function read(db,user) {
+  const [row]=await db('whatsapp_chat_state',{user_id:'eq.'+user,select:'*',limit:'1'});
+  return {revision:row?.revision,messages:history(row?.messages)};
 }
-module.exports={clip,history,claim,COOLDOWN,LIMIT,TURNS};
+// Merge delivered turns against the latest revision, never overwrite a stale snapshot.
+// Bounded immediate CAS retries protect storage without delaying or retrying delivery.
+async function append(db,user,turns) {
+  for(let attempt=0;attempt<12;attempt++) {
+    const old=await read(db,user);
+    const row={user_id:user,revision:randomUUID(),messages:history([...old.messages,...turns])};
+    const rows=old.revision
+      ? await db('whatsapp_chat_state',{user_id:'eq.'+user,revision:'eq.'+old.revision},'PATCH',row)
+      : await db('whatsapp_chat_state',{on_conflict:'user_id'},'POST',row,'resolution=ignore-duplicates,return=representation');
+    if(rows.length) return true;
+  }
+  console.error('whatsapp-chat: history contention');
+  return false;
+}
+module.exports={clip,history,read,append,LIMIT,TURNS};
