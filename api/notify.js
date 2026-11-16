@@ -1,6 +1,6 @@
 // Backend-only WhatsApp reminders. Apply the approved notify_log migration first.
-// A durable pending claim is never automatically retried: a lost Twilio response
-// cannot establish whether it accepted the message. This favors no duplicates.
+// Ambiguous send failures are marked failed and retried on the next ping.
+// A lost Twilio response can therefore cause a duplicate (an accepted tradeoff).
 const { timingSafeEqual } = require('crypto');
 const CAP = 3;
 function dueTasks(rows, now) {
@@ -33,7 +33,7 @@ async function handler(req,res) {
     if (!r.ok) throw Error('Supabase request failed ('+r.status+'); check configuration and notify_log migration');
     return r.status===204 ? [] : r.json();
   }
-  let attempts=0, accepted=0;
+  let attempts=0, accepted=0, claimed=0, failed=0;
   const errors=[];
   try {
     let user;
@@ -53,42 +53,48 @@ async function handler(req,res) {
     }
     for(const task of dueTasks(all,now)) {
       if(attempts>=CAP) break;
-      const event={task_id:task.id,due_at:new Date(task.due_at).toISOString()};
-      const q=new URLSearchParams({task_id:'eq.'+event.task_id,due_at:'eq.'+event.due_at});
-      let claim=await db('/rest/v1/notify_log?on_conflict=task_id,due_at','POST',{...event,status:'pending'},'resolution=ignore-duplicates,return=representation');
-      if(!claim.length) claim=await db('/rest/v1/notify_log?'+q+'&status=eq.failed','PATCH',{status:'pending',updated_at:new Date().toISOString()});
-      if(!claim.length) continue;
-      // Recheck after the claim so deleted/completed/rescheduled rows cannot be sent from a stale snapshot.
-      const fresh=await db('/rest/v1/tasks?'+new URLSearchParams({select:'*',id:'eq.'+task.id,user_id:'eq.'+user.id,due_at:'eq.'+event.due_at}));
-      if(!dueTasks(fresh,now).length) { await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed'}); continue; }
-      attempts++;
-      const due=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Lagos',weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(task.due_at));
-      const body=new URLSearchParams({From:'whatsapp:+14155238886',To:'whatsapp:+'+phone,Body:'A gentle nudge from Steep 🌿\n'+task.title+'\nDue '+due+' (Lagos). One small step when you’re ready.'});
-      let r, data;
+      let q, ownsClaim=false;
       try {
-        r=await request('https://api.twilio.com/2010-04-01/Accounts/'+encodeURIComponent(env.TWILIO_ACCOUNT_SID)+'/Messages.json',{method:'POST',headers:{Authorization:'Basic '+Buffer.from(env.TWILIO_ACCOUNT_SID+':'+env.TWILIO_AUTH_TOKEN).toString('base64'),'Content-Type':'application/x-www-form-urlencoded'},body});
-        data=await r.json();
-      } catch (_) {
-        console.error('notify: Twilio outcome unknown; pending claim retained');
-        errors.push({error:'twilio-outcome-unknown',retry:false}); continue;
-      }
-      if(!r.ok || ['failed','undelivered'].includes(data.status)) {
-        const code=Number.isInteger(data.code)?data.code:null;
-        // 63016: outside WhatsApp window; 63015: recipient not joined;
-        // 21608: trial recipient unverified; 20003: authentication failure.
-        // All explicit API rejections are retryable, not only these examples.
-        console.error('notify: Twilio rejected',r.status,code);
-        errors.push({error:'twilio-rejected',httpStatus:r.status,code,retry:true});
-        await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed',error_code:code,updated_at:new Date().toISOString()});
-      } else if(typeof data.sid==='string' && data.sid && !['failed','undelivered'].includes(data.status)) {
+        const event={task_id:task.id,due_at:new Date(task.due_at).toISOString()};
+        q=new URLSearchParams({task_id:'eq.'+event.task_id,due_at:'eq.'+event.due_at});
+        let claim=await db('/rest/v1/notify_log?on_conflict=task_id,due_at','POST',{...event,status:'pending'},'resolution=ignore-duplicates,return=representation');
+        if(!claim.length) claim=await db('/rest/v1/notify_log?'+q+'&status=eq.failed','PATCH',{status:'pending',updated_at:new Date().toISOString()});
+        if(!claim.length) continue;
+        ownsClaim=true; claimed++;
+        // Recheck after the claim so deleted/completed/rescheduled rows cannot be sent from a stale snapshot.
+        const fresh=await db('/rest/v1/tasks?'+new URLSearchParams({select:'*',id:'eq.'+task.id,user_id:'eq.'+user.id,due_at:'eq.'+event.due_at}));
+        if(!dueTasks(fresh,now).length) { await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed'}); failed++; continue; }
+        attempts++;
+        const due=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Lagos',weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(task.due_at));
+        const body=new URLSearchParams({From:'whatsapp:+14155238886',To:'whatsapp:+'+phone,Body:'A gentle nudge from Steep 🌿\n'+task.title+'\nDue '+due+' (Lagos). One small step when you’re ready.'});
+        const r=await request('https://api.twilio.com/2010-04-01/Accounts/'+encodeURIComponent(env.TWILIO_ACCOUNT_SID)+'/Messages.json',{method:'POST',headers:{Authorization:'Basic '+Buffer.from(env.TWILIO_ACCOUNT_SID+':'+env.TWILIO_AUTH_TOKEN).toString('base64'),'Content-Type':'application/x-www-form-urlencoded'},body});
+        const data=await r.json();
+        if(!data || typeof data!=='object') throw Error('Unexpected Twilio response');
+        if(!r.ok || ['failed','undelivered'].includes(data.status)) {
+          // Every explicit rejection remains retryable, including unknown codes.
+          throw {code:data.code, rejected:true, httpStatus:r.status};
+        }
+        if(typeof data.sid!=='string' || !data.sid) throw Error('Unexpected Twilio response');
         await db('/rest/v1/notify_log?'+q,'PATCH',{status:'sent',notified_at:new Date().toISOString(),message_sid:data.sid,updated_at:new Date().toISOString()});
         accepted++;
-      } else {
-        errors.push({error:'twilio-outcome-unknown',retry:false});
-        console.error('notify: unexpected Twilio response; pending claim retained');
+      } catch (error) {
+        // Thrown values need not be Errors (or even non-null objects).
+        let code=null, rejected=false, httpStatus;
+        try { if(Number.isInteger(error?.code)) code=error.code; rejected=error?.rejected===true; if(Number.isInteger(error?.httpStatus)) httpStatus=error.httpStatus; } catch (_) {}
+        failed++;
+        errors.push({error:rejected?'twilio-rejected':'task-failed',...(rejected?{httpStatus}:{}),code,retry:true});
+        console.error('notify: task failed',code);
+        if(ownsClaim) {
+          try {
+            await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed',error_code:code,updated_at:new Date().toISOString()});
+          } catch (_) {
+            // Storage can fail too: keep processing; never retry the send here.
+            console.error('notify: failed to record task failure; inspect notify_log');
+          }
+        }
       }
     }
-    return res.status(errors.length?502:200).json({attempts,accepted,errors});
+    return res.status(200).json({claimed,sent:accepted,failed,attempts,accepted,errors});
   } catch (_) {
     console.error('notify: Supabase/configuration failure; inspect notify_log migration and pending claims');
     return res.status(503).json({error:'notify-backend-failed',attempts,accepted});

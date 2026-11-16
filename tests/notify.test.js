@@ -8,8 +8,8 @@ async function run() {
   const now=Date.parse('2026-11-15T23:00:00+01:00');
   const env={NOTIFY_SECRET:'test-secret',SUPABASE_URL:'https://mock.invalid',SUPABASE_SERVICE_ROLE_KEY:'mock-key',NOTIFY_USER_EMAIL:'owner@example.invalid',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock-token',WHATSAPP_TO:'+2348000000000'};
   const task=(id,due=now,extra={})=>({id,user_id:'owner-id',title:'Make tea',status:'open',completed_at:null,due_at:new Date(due).toISOString(),...extra});
-  let tasks,log,calls,mode,failDB,clock=now;
-  function reset(rows=[task('a')]) {clock=now;tasks=rows; log=new Map(); calls=[];mode='ok';failDB=false;process.env={...env};}
+  let tasks,log,calls,mode,failDB,failStage,clock=now;
+  function reset(rows=[task('a')]) {clock=now;tasks=rows; log=new Map(); calls=[];mode='ok';failDB=false;failStage='';process.env={...env};}
   const response=(status,data)=>({ok:status>=200&&status<300,status,json:async()=>data});
   global.fetch=async(url,opts={})=>{
     calls.push({url,opts});
@@ -18,6 +18,13 @@ async function run() {
       eq(opts.method,'POST'); eq(opts.body.get('From'),'whatsapp:+14155238886'); eq(opts.body.get('To'),'whatsapp:+2348000000000');
       eq(opts.headers.Authorization,'Basic '+Buffer.from('ACmock:mock-token').toString('base64'));
       eq(opts.body.get('Body').includes('(Lagos)'),true);
+      if(mode==='first-fails') {mode='ok';throw {code:20003};}
+      if(mode==='throw-null') throw null;
+      if(mode==='throw-string') throw 'unexpected';
+      if(mode==='throw-getter') throw {get code(){throw Error('getter');}};
+      if(mode==='throw-code') throw {code:63016};
+      if(mode==='null-json') return response(201,null);
+      if(mode==='missing-sid') return response(201,{});
       if(mode==='timeout') throw Error('timeout');
       if(mode==='invalid-json') return {ok:true,status:201,json:async()=>{throw Error('bad JSON');}};
       if(mode!=='ok') return response(400,{code:Number(mode),message:'Private provider details must not leak'});
@@ -29,6 +36,7 @@ async function run() {
     if(u.pathname==='/rest/v1/tasks') {
       eq(p.get('user_id'),'eq.owner-id');
       let found=tasks.filter(t=>t.user_id==='owner-id');
+      if(p.has('id') && failStage==='fresh') {failStage='';throw null;}
       if(p.has('id')) found=found.filter(t=>'eq.'+t.id===p.get('id') && 'eq.'+t.due_at===p.get('due_at'));
       else found=found.slice(Number(p.get('offset')),Number(p.get('offset'))+500);
       return response(200,found);
@@ -36,6 +44,7 @@ async function run() {
     if(u.pathname==='/rest/v1/notify_log') {
       const data=JSON.parse(opts.body),key=opts.method==='POST'?data.task_id+'|'+data.due_at:p.get('task_id').slice(3)+'|'+p.get('due_at').slice(3);
       if(opts.method==='POST') {if(log.has(key))return response(201,[]);log.set(key,{...data});return response(201,[data]);}
+      if(opts.method==='PATCH' && (failStage===data.status || failStage==='every-patch')) {if(failStage!=='every-patch') failStage='';throw {code:99999};}
       const old=log.get(key);
       if(!old || (p.has('status') && 'eq.'+old.status!==p.get('status'))) return response(200,[]);
       Object.assign(old,data);return response(200,[old]);
@@ -61,8 +70,25 @@ async function run() {
     tasks=[task('a',now+86400000,{recurrence:'daily'})];eq((await invoke()).body.accepted,0);
     clock=now+86400000;tasks=[task('a',clock,{recurrence:'daily'})];eq((await invoke()).body.accepted,1);eq(log.size,2);
     reset(Array.from({length:7},(_,i)=>task(String(i),now-i*1000)));eq((await invoke()).body.accepted,3);eq((await invoke()).body.accepted,3);eq((await invoke()).body.accepted,1);eq(twilio().length,7);
-    for(const code of [63016,63015,21608,20003,99999]) {reset();mode=String(code);const r=await invoke();eq(r.statusCode,502);eq(r.body.errors[0].code,code);eq([...log.values()][0].status,'failed');eq([...log.values()][0].notified_at,undefined);mode='ok';eq((await invoke()).body.accepted,1);eq(twilio().length,2);}
-    for(const failure of ['timeout','invalid-json']) {reset();mode=failure;eq((await invoke()).statusCode,502);eq([...log.values()][0].status,'pending');mode='ok';eq((await invoke()).body.accepted,0);eq(twilio().length,1);}
+    for(const code of [63016,63015,21608,20003,99999]) {reset();mode=String(code);const r=await invoke();eq(r.statusCode,200);eq(r.body.errors[0].code,code);eq([...log.values()][0].status,'failed');eq([...log.values()][0].notified_at,undefined);mode='ok';eq((await invoke()).body.accepted,1);eq(twilio().length,2);}
+    for(const failure of ['timeout','invalid-json','throw-null','throw-string','throw-getter','throw-code','null-json','missing-sid']) {
+      reset();mode=failure;const r=await invoke();eq(r.statusCode,200);
+      eq([r.body.claimed,r.body.sent,r.body.failed],[1,0,1]);
+      eq([...log.values()][0].status,'failed');
+      eq([...log.values()][0].error_code,failure==='throw-code'?63016:null);
+      mode='ok';eq((await invoke()).body.accepted,1);eq(twilio().length,2);
+    }
+    reset([task('a'),task('b')]);mode='first-fails';
+    {const r=await invoke();eq(r.statusCode,200);eq([r.body.claimed,r.body.sent,r.body.failed],[2,1,1]);eq([...log.values()].map(x=>x.status),['failed','sent']);eq([...log.values()][0].error_code,20003);eq(twilio().length,2);}
+    reset([task('a'),task('b'),task('c'),task('d')]);mode='throw-null';
+    {const r=await invoke();eq(r.statusCode,200);eq([r.body.claimed,r.body.sent,r.body.failed,r.body.attempts],[3,0,3,3]);eq([...log.values()].map(x=>x.status),['failed','failed','failed']);eq(twilio().length,3);}
+    for(const stage of ['fresh','sent','failed','every-patch']) {
+      reset([task('a'),task('b')]);failStage=stage;
+      if(stage==='failed' || stage==='every-patch') mode='first-fails';
+      const r=await invoke();eq(r.statusCode,200);eq(r.body.claimed,2);
+      if(stage==='every-patch') {eq(r.body.failed,2);eq(r.body.sent,0);}
+      else {eq(r.body.failed,1);eq(r.body.sent,1);eq([...log.values()][1].status,'sent');}
+    }
     reset();await Promise.all([invoke(),invoke()]);eq(twilio().length,1);
     reset();failDB=true;eq((await invoke()).statusCode,503);eq(twilio().length,0);
     // Lagos midnight is 23:00 UTC: absolute timestamp comparison has no host-TZ dependency.
