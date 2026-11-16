@@ -1,6 +1,6 @@
 # Steep
 
-Steep is an AI assistant for TikTok creators: a friendly place to talk niches, RPM, editing, growth, strikes, monetization and appeals. This v1 is a web chat demo, not an official TikTok product.
+Steep is an AI assistant that helps with everyday tasks, research and plans - all in a simple chat.
 
 ## File map
 
