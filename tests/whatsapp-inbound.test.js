@@ -52,6 +52,24 @@ reset();q=req('tasks');q.method='GET';eq((await invoke(inbound,q)).statusCode,40
 for(const name of ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','TWILIO_AUTH_TOKEN']){reset();delete process.env[name];r=await send('okay');eq(r.statusCode,503);ok(r.body.missing.includes(name));eq(calls.length,0);}
 reset();links=[];r=await send('hello');ok(r.body.includes('Settings'));eq(tasks[0].status,'open');
 reset();links=[];r=await send('link ABC12345');ok(r.body.includes('expired'));eq(links.length,0);
+// Bare hex is deliberate: everyday replies must not consume a link-code attempt.
+for(const text of ['ABC12345','abc12345','  aBc12345  ','link ABC12345','LiNk abc12345 please']) {
+  reset();Object.assign(links[0],{status:'pending',wa_id:null,expires_at:new Date(now+900000).toISOString()});
+  r=await send(text);ok(r.body.includes('You’re linked to Steep'));eq(links[0].status,'linked');eq(links[0].wa_id,'2348000000000');
+  ok(calls.some(c=>c.opts.method==='PATCH' && c.url.includes('link_code=eq.ABC12345')));
+}
+for(const text of ['DEADBEEF','deadbeef']) {
+  reset();links=[];r=await send(text);ok(r.body.includes('expired or was already used'));eq(links.length,0);
+  ok(calls.some(c=>c.opts.method==='PATCH' && c.url.includes('link_code=eq.DEADBEEF')));
+}
+for(const text of ['snooze','thanks','okay','hello','ABC123','ABC123456','ABC12345 please','ZZZZZZZZ']) {
+  reset();links=[];r=await send(text);ok(r.body.includes('tap Link WhatsApp, then tap Send in WhatsApp. 🌿'));
+  ok(!r.body.includes('expired'));ok(!calls.some(c=>c.opts.method==='PATCH' && c.url.includes('link_code=')));
+}
+for(const text of ['ABC12345','abc12345','link ABC12345']) {
+  reset();r=await send(text);eq(links[0].status,'linked');eq(tasks[0].status,'open');
+  ok(!calls.some(c=>c.opts.method==='PATCH' && c.url.includes('link_code=')));
+}
 const authReq={method:'POST',headers:{authorization:'Bearer mock'}};
 reset();links=[];r=await invoke(linkAPI,authReq);eq(r.statusCode,200);ok(/^[A-F0-9]{8}$/.test(r.body.code));eq(Date.parse(r.body.expires_at)-clock,900000);eq(r.body.sandbox,'+1 415 523 8886');const code=r.body.code;
 r=await send('LiNk '+code.toLowerCase()+' please');ok(r.body.includes('linked'));eq(links[0].wa_id,'2348000000000');eq(links[0].status,'linked');

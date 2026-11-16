@@ -20,13 +20,13 @@ async function handler(req,res) {
     if(!receipt.length) return reply('That message was already handled.');
     let [link]=await db('whatsapp_links',{select:'*',wa_id:'eq.'+wa,status:'eq.linked'});
     if(!link) {
-      const code=body.match(/^link\s+([a-z0-9]{6,8})\b/i)?.[1].toUpperCase();
+      const code=(body.match(/^link\s+([a-z0-9]{6,8})\b/i)?.[1] || body.match(/^[a-f0-9]{8}$/i)?.[0])?.toUpperCase();
       if(code) {
         const changed=await db('whatsapp_links',{link_code:'eq.'+code,status:'eq.pending',expires_at:'gt.'+at},'PATCH',{wa_id:wa,status:'linked',linked_at:at,updated_at:at});
         if(changed.length) return reply('You’re linked to Steep 🌿 Reply okay to finish a due task, snooze 10 to take a little longer, or tasks to see your list.');
         return reply('That link code has expired or was already used. Get a fresh one in Steep’s Settings.');
       }
-      return reply('Let’s link your Steep account first. Open Steep → Settings → Link WhatsApp, then send link CODE here.');
+      return reply('Let’s link your Steep account first. Open Steep → Settings → tap Link WhatsApp, then tap Send in WhatsApp. 🌿');
     }
     const tasks=await db('tasks',{select:'*',user_id:'eq.'+link.user_id,status:'eq.open',order:'due_at.asc.nullslast,id.asc',limit:'500'});
     const open=tasks.filter(t=>!t.completed_at && !t.deleted_at && !t.tombstone && !t.is_deleted);

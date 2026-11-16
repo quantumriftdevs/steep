@@ -22,5 +22,10 @@
 .panel-actions{display:flex;flex-wrap:wrap;gap:8px;}
 .settings-panel button{border:1px solid var(--line);border-radius:999px;background:var(--paper);padding:9px 14px;color:var(--ink);font:inherit;}
 #confirm-clear{color:#9e3f2f;}#settings-feedback{color:var(--muted);font-size:14px;}
-.settings-page :is(button,a,input):focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
+.settings-page :is(button,a):focus-visible{outline:2px solid var(--amber);outline-offset:3px;}
 @media(max-width:700px){.settings-page{padding:18px 22px max(24px,env(safe-area-inset-bottom));}}
+
+.settings-page input:focus{outline:none;box-shadow:none;}
+#whatsapp-link{background:var(--ink);color:var(--cream);border-color:var(--amber);font-size:16px;min-height:44px;padding:12px 22px;}
+#whatsapp-status{line-height:1.6;overflow-wrap:anywhere;}
+.whatsapp-heading{font-size:16px;font-weight:500;color:var(--ink);margin:20px 0 0;}
