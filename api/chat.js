@@ -97,6 +97,11 @@ module.exports = async (req, res) => {
     return res.status(200).json({taskIntent:'add',taskTitle:title,taskNotes:'[steep:check-in]',taskDue:due,taskRecurrence:task.recurrence,reply:'I will check in then.'});
   }
   if (task?.type === 'add' && /^(?:set (?:a )?reminder (?:for|to)|remind me for)\b/i.test(latestTaskText.trim()) && !parseDue(task.phrase, Date.now()) && !task.recurrence) return res.status(200).json({taskIntent:'clarify',taskPendingTitle:cleanTaskTitle(task.phrase),reply:'When should I remind you?'});
+  if (task?.type === 'add' && /\b(?:reminder me to\b|(?:I need to )?remember (?:me (?:to|about|of|for)|to)\b|make sure I\b)/i.test(latestTaskText) && !parseDue(task.phrase, Date.now()) && !task.recurrence) return res.status(200).json({taskIntent:'clarify',taskPendingTitle:cleanTaskTitle(task.phrase),reply:'When should I remind you?'});
+  if (task?.type === 'add' && /\breminder me to\b/i.test(latestTaskText)) {
+    const offer = parseOffer('Do you mean to set a reminder to ' + task.phrase + '? [[OFFER:' + JSON.stringify({command:'remind me to ' + task.phrase}) + ']]');
+    return res.status(200).json({reply:offer.reply,...(offer.command ? {taskOffer:offer.command} : {})});
+  }
   if (task?.type === 'clarify') return res.status(200).json({taskIntent:'clarify', taskDue:task.due, reply:"What should I remind you about?"});
   const pendingTitle = !task && pendingAnswer([...messages].reverse().find(m => m.role === 'user')?.content, req.body?.taskPending, !!(page || doc));
   if (pendingTitle) return res.status(200).json({taskIntent:'add', taskTitle:pendingTitle, taskDue:validDue(req.body.taskPending.due), reply:'Preparing your reminder.'});
@@ -141,6 +146,7 @@ module.exports = async (req, res) => {
       if (offer.command) { output.taskOffer = offer.command; delete output.taskSuggest; }
     }
     if (!page && !doc && !task && !output.taskOffer && /\b(?:(?:your|the|a|new)\s+(?:new\s+)?(?:reminder|task)\s+(?:(?:is|was|has been)\s+)?(?:set|saved|added|created|scheduled)|I(?:'ve| have)?\s+(?:set|saved|added|created|scheduled)\s+(?:your|the|a)\s+(?:reminder|task))\b/i.test(output.reply)) { output.reply = "I haven't saved a task. What should I remind you about, and when?"; delete output.taskSuggest; }
+    if (!page && !doc && !task && /\b(?:(?:reminders?|tasks?)\b[^.!?\n]{0,60}\b(?:set|saved|added|created|scheduled)|(?:set|saved|added|created|scheduled|setting|saving|adding|creating|scheduling)\b[^.!?\n]{0,60}\b(?:reminders?|tasks?)|I(?:['’]ve| have|'m| am)?\s+(?:just\s+|already\s+)?(?:set|saved|added|created|scheduled|am setting|am saving|am adding|am creating|am scheduling)\s+(?:it|that|this)|all set|consider it done)\b/i.test(output.reply)) { output.reply = output.taskOffer ? "I haven't saved it yet. Add this reminder?" : "I haven't saved a task. What should I remind you about, and when?"; delete output.taskSuggest; }
     const latestUserText = [...messages].reverse().find(m => m.role === 'user')?.content || '';
       const dueNow = Date.now();
       if (output.taskIntent === 'add') {

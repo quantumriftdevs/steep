@@ -1,3 +1,4 @@
+
 import { getSession } from './auth.js';
 import { requireAuth } from './guest.js';
 import { projectNav, leaveProjects } from './projects-context.js';
@@ -27,7 +28,7 @@ export function setupTasks(api) {
   let section, list, status, draft = {}, account = getSession()?.user?.id, completedOpen = false;
   function update() {
     const selected = projectNav.tab === 'tasks'; tab.classList.toggle('active', selected); tab.setAttribute('aria-pressed', String(selected)); tab.disabled = api.busy();
-    const count = taskRows().filter(t => t.status === 'open').length; badge.textContent = String(count); badge.hidden = !count;
+    const count = getSession()?.user?.id ? taskRows().filter(t => t.status === 'open').length : 0; badge.textContent = count ? '(' + count + ')' : ''; badge.hidden = !count;
     badge.setAttribute('aria-label', count + ' open tasks');
     document.querySelector('.composer-wrap').hidden = selected;
   }

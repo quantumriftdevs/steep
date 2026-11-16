@@ -1,3 +1,4 @@
+
 // Explicit task commands only. Document/page routing always has priority.
 const { randomBytes } = require('crypto');
 const latest = messages => [...messages].reverse().find(m => m.role === 'user')?.content || '';
@@ -138,7 +139,7 @@ exports.taskIntent = (messages, blocked = false, now = Date.now()) => {
   if (creation.items.length > 8) return {type:'batch', overflow:true, items:[]};
   if (creation.items.length > 1) return {type:'batch', items:creation.items};
   if (creation.found && !creation.items.length) return null;
-  if (creation.items.length === 1 && creation.items[0].start > 0) {
+  if (creation.items.length === 1 && (creation.items[0].start > 0 || /^(?:reminder me to |(?:I need to )?remember |(?:don't|do not) let me forget|make sure I )/i.test(raw.replace(/[’]/g, "'")))) {
     const item = creation.items[0];
     return {type:'add', phrase:item.phrase, recurrence:item.recurrence, cleanTitle:item.title, commandDue:item.due};
   }
@@ -195,14 +196,17 @@ exports.recurrenceDue = (phrase, recurrence, now = Date.now()) => {
 // Creation commands may occur anywhere; destructive/query intents stay anchored.
 exports.creationCommands = (raw, now = Date.now()) => {
   raw = raw.replace(/[’]/g, "'");
-  const anchors = [...raw.matchAll(/\b(?:remind me (?:to|about|of|for)|set (?:a )?reminder (?:for|to)|(?:make|create|add) (?:a )?task(?: to|:)?|todo\s*:|add\s+(?=.+?\s+to my (?:list|tasks)\b))/gi)];
+  const anchors = [...raw.matchAll(/\b(?:reminder me to\b|(?:I need to )?remember (?:me (?:to|about|of|for)|to)\b|(?:don't|do not) let me forget(?: to| about)?\b|make sure I\b|remind me (?:to|about|of|for)|set (?:a )?reminder (?:for|to)|(?:make|create|add) (?:a )?task(?: to|:)?|todo\s*:|add\s+(?=.+?\s+to my (?:list|tasks)\b))/gi)];
   const items = [];
   for (let i = 0; i < anchors.length; i++) {
     const anchor = anchors[i], prefix = raw.slice(i ? anchors[i-1].index + anchors[i-1][0].length : 0, anchor.index);
+    const broadened = /^(?:reminder me to\b|(?:I need to )?remember |(?:don't|do not) let me forget|make sure I)/i.test(anchor[0]);
+    if (broadened && (/\b(?:do you|did you|does he|does she|how|why|what|whether|if|used to|maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(prefix) || /\b(?:don't|do not|never|no need|not to|cannot|can't|won't|will not)\b/i.test(prefix))) continue;
     if (/(?:\b(?:don't|do not|never)\s*|\bno need to\s*|\byou (?:don't|do not) have to\s*)$/i.test(prefix.trim())) continue;
     const tail = raw.slice(anchor.index + anchor[0].length, anchors[i+1]?.index ?? raw.length).replace(/[\s,;.!?]+$/g, '').replace(/\s+(?:(?:and|but)\s+)?(?:(?:don't|do not|never)|no need to|you (?:don't|do not) have to)\s*$/i, '').replace(/\s+and$/i, '').replace(/[\s,;.!?]+$/g, '').trim();
     const phrase = tail.replace(/\s+to my (?:list|tasks)\b/i, '').replace(/\s+(?:please|thanks|thank you)\b.*$/i, '').replace(/\s+(?:before|after) I\b.*$/i, '').trim();
     if (!phrase) continue;
+    if (broadened && /^(?:not|don't|do not|never)\b|\b(?:maybe|might|someday|perhaps|eventually|wish|hypothetical)\b/i.test(phrase)) continue;
     const title = exports.cleanTaskTitle(phrase);
     const dueText = (anchors.length === 1 ? raw.slice(0, anchor.index) + ' ' : '') + phrase;
     const due = exports.parseDue(dueText, now), recurrence = exports.recurrence(phrase);
