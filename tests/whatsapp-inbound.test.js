@@ -1,6 +1,6 @@
 // No live providers: every fetch is replaced and unknown routes throw.
 const assert=require('node:assert/strict'),fs=require('node:fs'),{createHmac}=require('node:crypto');
-const inbound=require('../api/whatsapp-inbound'),linkAPI=require('../api/whatsapp-link');
+const router=require('../api/whatsapp'); const inbound=(req,res)=>router(req,res),linkAPI=(req,res)=>router({...req,url:'/api/whatsapp-link'},res);
 const {nextOccurrence,snoozeMinutes}=require('../server/whatsapp-tasks');
 (async()=>{
 let count=0; const eq=(a,b)=>{assert.deepEqual(a,b);count++;},ok=a=>{assert.ok(a);count++;};
@@ -82,8 +82,30 @@ for(const recurrence of ['daily','weekdays','weekly:1','weekly:7','biweekly','mo
 }
 reset();tasks=Array.from({length:160},(_,i)=>task('chunk-'+i));logs=[{task_id:'chunk-1',due_at:tasks[1].due_at,notified_at:'2026-11-16T11:00Z',status:'sent'},{task_id:'chunk-159',due_at:tasks[159].due_at,notified_at:'2026-11-16T11:59Z',status:'sent'}];await send('okay');eq(tasks[159].status,'done');eq(tasks[1].status,'open');eq(calls.filter(c=>c.url.includes('/notify_log?')).length,3);
 reset();fail=true;r=await send('okay');eq(r.statusCode,503);eq(tasks[0].status,'open');
-for(const p of ['api/whatsapp-inbound.js','api/whatsapp-link.js'])ok(!fs.readFileSync(p,'utf8').includes('api.twilio.com'));
+for(const p of ['server/whatsapp-inbound.js','server/whatsapp-link.js'])ok(!fs.readFileSync(p,'utf8').includes('api.twilio.com'));
 const html=fs.readFileSync('app/settings.html','utf8');ok(html.includes('class="settings-group" aria-label="WhatsApp settings"'));ok(html.includes('id="whatsapp-panel"'));ok(fs.readFileSync('js/settings.js','utf8').includes("import './whatsapp-settings.js'"));
+// Rewrites and router paths: all providers remain mocked.
+const rewrites=JSON.parse(fs.readFileSync('vercel.json','utf8')).rewrites;
+for(const name of ['inbound','link']) eq(rewrites.find(v=>v.source==='/api/whatsapp-'+name).destination,'/api/whatsapp?__steep_wa='+name);
+eq(fs.readdirSync('api').filter(p=>p.endsWith('.js')).length,12);
+for(const query of ['', '?x=a%20b', '?z=%2B&x=2', '?x=1&x=2']) {
+  reset(); const original='/api/whatsapp-inbound'+query;
+  const q=req('tasks',{url:original});
+  q.url='/api/whatsapp?__steep_wa=inbound'+(query?'&'+query.slice(1):'');
+  const r=await invoke(router,q); eq(r.statusCode,200); eq(q.originalUrl,original);
+}
+reset(); let routed=req('tasks'); routed.originalUrl=routed.url;
+routed.url='/api/whatsapp?__steep_wa=link';
+eq((await invoke(router,routed)).statusCode,200);
+reset(); routed=req('tasks'); routed.url='/api/whatsapp?__steep_wa=inbound&x=a%20b'; routed.body.Body='tampered';
+eq((await invoke(router,routed)).statusCode,403); eq(calls.length,0);
+for(const route of ['inbound','link']) {
+  reset(); eq((await invoke(router,{method:'DELETE',url:'/api/whatsapp?__steep_wa='+route,headers:{}})).statusCode,405); eq(calls.length,0);
+}
+reset(); eq((await invoke(router,{method:'GET',url:'/api/whatsapp?__steep_wa=link',headers:{}})).statusCode,401); eq(calls.length,0);
+for(const url of ['/api/whatsapp','/api/whatsapp?__steep_wa=nope','/api/other']) {
+  reset(); eq((await invoke(router,{method:'POST',url,headers:{}})).statusCode,404); eq(calls.length,0);
+}
 console.log('WhatsApp B1: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;Date.now=saved.now;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

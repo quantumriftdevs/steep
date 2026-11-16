@@ -1,7 +1,7 @@
-const signature=require('../server/whatsapp-signature');
-const {config,database} = require('../server/whatsapp-db');
-const {isAffirmative} = require('../server/affirmative');
-const {snoozeMinutes,completion} = require('../server/whatsapp-tasks');
+const signature=require('./whatsapp-signature');
+const {config,database} = require('./whatsapp-db');
+const {isAffirmative} = require('./affirmative');
+const {snoozeMinutes,completion} = require('./whatsapp-tasks');
 const escape = s => String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
 const dueLabel = due => due ? new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Lagos',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(due))+' (Lagos)' : 'No due date';
 async function handler(req,res) {

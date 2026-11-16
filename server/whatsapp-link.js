@@ -1,5 +1,5 @@
 const {randomBytes,randomUUID}=require('node:crypto');
-const {config,database}=require('../server/whatsapp-db');
+const {config,database}=require('./whatsapp-db');
 const sandbox='+1 415 523 8886';
 module.exports=async(req,res)=>{
   res.setHeader('Cache-Control','no-store');

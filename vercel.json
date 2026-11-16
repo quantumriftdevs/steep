@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/whatsapp-inbound", "destination": "/api/whatsapp?__steep_wa=inbound" },
+    { "source": "/api/whatsapp-link", "destination": "/api/whatsapp?__steep_wa=link" },
     { "source": "/s/:token", "destination": "/s/index.html" },
     { "source": "/p/:token", "destination": "/api/page?token=:token" }
   ]
