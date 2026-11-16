@@ -2,7 +2,7 @@ const { taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSugge
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
 const { research } = require('./research');
-const { prompt } = require('../server/personality'); const { projectPrompt, providerBody } = require('../server/project-context');
+const { prompt } = require('../server/personality'); const { projectPrompt, providerBody, taskContextPrompt } = require('../server/project-context');
 
 const stripFileData = text => text.replace(/data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{80,}/gi, '[attachment removed]').replace(/[A-Za-z0-9+/=]{200,}/g, '[attachment removed]');
 
@@ -80,7 +80,8 @@ module.exports = async (req, res) => {
   if (task && task.type !== 'add') return res.status(200).json({ taskIntent: task.type, taskPhrase: task.phrase || '', taskQuery:task.query || null, taskDue:task.due || null, reply: task.type === 'list' ? 'Checking your tasks.' : 'Checking for that task.' });
   const groqKey = (process.env.GROQ_API_KEY || '').trim();
   if (!groqKey) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add GROQ_API_KEY in Vercel" });
-  let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
+  let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt);
+    if (req.body?.taskContext !== undefined) systemPrompt = taskContextPrompt(systemPrompt, req.body.taskContext); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
   if (!page && !doc && !task) systemPrompt += '\n\n' + 'Steep has built-in tasks and reminders. Say "remind me to email Ada Friday" and the app saves it automatically and shows a task card. Never say you cannot set reminders. Never claim you personally added, completed or deleted a task: the app handles saving and changes; you only converse. If someone wants a reminder, tell them to just say "remind me to ...".';
   const taskMarks = taskProtocol();
   const suggest = !page && !doc && !task && taskSuggestionEligible(messages);
