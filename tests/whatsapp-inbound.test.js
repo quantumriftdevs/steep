@@ -1,5 +1,6 @@
 // No live providers: every fetch is replaced and unknown routes throw.
 const assert=require('node:assert/strict'),fs=require('node:fs'),{createHmac}=require('node:crypto');
+let chatCalls=[];require.cache[require.resolve('../server/whatsapp-chat')]={exports:{chat:async args=>{chatCalls.push(args);return 'Mock chat reply';}}};
 const router=require('../api/whatsapp'); const inbound=(req,res)=>router(req,res),linkAPI=(req,res)=>router({...req,url:'/api/whatsapp-link'},res);
 const {nextOccurrence,snoozeMinutes}=require('../server/whatsapp-tasks');
 (async()=>{
@@ -8,7 +9,7 @@ const saved={env:process.env,fetch:global.fetch,now:Date.now};
 const now=Date.parse('2026-11-16T12:00:00Z'),env={SUPABASE_URL:'https://mock.invalid',SUPABASE_SERVICE_ROLE_KEY:'mock',TWILIO_AUTH_TOKEN:'token',GROQ_API_KEY:'mock'};
 let receipts,links,tasks,logs,classification,calls,clock,sid,fail,auth;
 const task=(id='a',extra={})=>({id,user_id:'owner',title:'Tea & <rest>',status:'open',completed_at:null,due_at:new Date(now-60000).toISOString(),...extra});
-function reset(){receipts=[];links=[{id:'link',user_id:'owner',wa_id:'2348000000000',status:'linked',link_code:'ABC12345',updated_at:new Date(now-60000).toISOString(),revision:'r1',seen_sids:[]}];tasks=[task()];logs=[];classification='OTHER';calls=[];clock=now;sid=0;fail=false;auth=true;process.env={...env};}
+function reset(){chatCalls=[];receipts=[];links=[{id:'link',user_id:'owner',wa_id:'2348000000000',status:'linked',link_code:'ABC12345',updated_at:new Date(now-60000).toISOString(),revision:'r1',seen_sids:[]}];tasks=[task()];logs=[];classification='OTHER';calls=[];clock=now;sid=0;fail=false;auth=true;process.env={...env};}
 Date.now=()=>clock;
 const response=(status,data)=>({ok:status<300,status,json:async()=>structuredClone(data)});
 function matches(row,p){return [...p].every(([k,v])=>{
@@ -28,6 +29,7 @@ global.fetch=async(url,opts={})=>{
  if(!rows)throw Error('Unexpected provider');
  let found=rows.filter(r=>matches(r,u.searchParams));
  if(opts.method==='POST'){const data=JSON.parse(opts.body);if(table==='whatsapp_inbound_log'){if(receipts.some(r=>r.message_sid===data.message_sid))return response(201,[]);receipts.push(data);return response(201,[data]);}if(rows.some(r=>r.user_id===data.user_id))return response(409,{});const row={id:'new',...data};rows.push(row);return response(201,[row]);}
+ if(opts.method==='DELETE'){found.forEach(row=>rows.splice(rows.indexOf(row),1));return response(200,found);}
  if(opts.method==='PATCH'){const data=JSON.parse(opts.body);found.forEach(r=>Object.assign(r,data));return response(200,found);}
  if(u.searchParams.has('order')){const field=u.searchParams.get('order').split('.')[0],desc=u.searchParams.get('order').includes('.desc');found.sort((a,b)=>(String(a[field]||'z').localeCompare(String(b[field]||'z')))*(desc?-1:1));}
  const limit=Number(u.searchParams.get('limit')||found.length);return response(200,found.slice(0,limit));
@@ -42,7 +44,7 @@ function req(body,extra={}){
 async function invoke(handler,r){const res={statusCode:200,setHeader(k,v){this[k]=v;},status(n){this.statusCode=n;return this;},json(v){this.body=v;return this;},send(v){this.body=v;return this;}};await handler(r,res);eq(res['Cache-Control'],'no-store');return res;}
 async function send(text,extra){return invoke(inbound,req(text,extra));}
 try{
-reset();let r=await send('tasks');eq(r.statusCode,200);ok(r['Content-Type'].startsWith('text/xml'));ok(r.body.includes('&amp; &lt;rest&gt;'));ok(r.body.includes('(Lagos)'));
+reset();let r=await send('tasks');eq(chatCalls.length,0);eq(r.statusCode,200);ok(r['Content-Type'].startsWith('text/xml'));ok(r.body.includes('&amp; &lt;rest&gt;'));ok(r.body.includes('(Lagos)'));
 for(const signature of ['',undefined,'bad','a'.repeat(28)]){reset();const q=req('okay');q.headers['x-twilio-signature']=signature;r=await invoke(inbound,q);eq(r.statusCode,403);eq(calls.length,0);eq(tasks[0].status,'open');}
 reset();let q=req('tasks');q.body.Body='tampered';eq((await invoke(inbound,q)).statusCode,403);
 reset();q=req('tasks');q.body=new URLSearchParams(q.body).toString();eq((await invoke(inbound,q)).statusCode,200);
@@ -81,7 +83,7 @@ reset();eq((await invoke(linkAPI,{method:'POST',headers:{}})).statusCode,401);eq
 reset();auth=false;eq((await invoke(linkAPI,authReq)).statusCode,401);
 for(const word of ['yes','yeah','Yup','yep','yh','correct','exactly','affirmative','sure','sure thing','ok','okay','okey','do it','go ahead','please do',' YES! ']){reset();r=await send(word);eq(tasks[0].status,'done');eq(tasks[0].completed_at,new Date(now).toISOString());ok(r.body.includes('Done'));eq(calls.filter(c=>c.url.includes('groq')).length,0);}
 for(const word of ['done','yes o','no wahala','do am','abeg do','oya','sí','oui','да','はい','sure thang']){reset();classification='YES';await send(word);eq(tasks[0].status,'done');eq(calls.filter(c=>c.url.includes('groq')).length,1);}
-for(const answer of ['NO','OTHER','YES, done','throw','http']){reset();classification=answer;r=await send('oya');eq(tasks[0].status,'open');ok(r.body.includes('Full chat'));}
+for(const answer of ['NO','OTHER','YES, done','throw','http']){reset();classification=answer;r=await send('oya');eq(tasks[0].status,'open');ok(r.body.includes('Mock chat reply'));}
 reset();delete process.env.GROQ_API_KEY;await send('oya');eq(tasks[0].status,'open');
 reset();classification='YES';await send('yes but change this task to tomorrow instead please');eq(tasks[0].status,'open');eq(calls.filter(c=>c.url.includes('groq')).length,0);
 for(const [text,minutes] of [['snooze 10',10],['snooze 30m',30],['SNOOZE 2h',120]]){reset();r=await send(text);eq(tasks[0].due_at,new Date(now+minutes*60000).toISOString());eq(tasks[0].status,'open');ok(r.body.includes('breathing room'));}
@@ -91,7 +93,7 @@ reset();tasks=[task('old',{due_at:new Date(now-120000).toISOString()}),task('new
 reset();tasks=[task('future',{due_at:new Date(now+60000).toISOString()})];r=await send('okay');ok(r.body.includes('No due'));eq(tasks[0].status,'open');
 reset();tasks=[];ok((await send('tasks')).body.includes('No open'));
 reset();tasks=Array.from({length:7},(_,i)=>task(String(i),{title:'Task '+i}));r=await send('tasks');ok(r.body.includes('Task 4'));ok(!r.body.includes('Task 5'));
-reset();r=await send('hello there');ok(r.body.includes('Full chat is coming'));eq(tasks[0].status,'open');
+reset();r=await send('hello there');eq(chatCalls.length,1);eq(chatCalls[0].body,'hello there');ok(r.body.includes('Mock chat reply'));eq(tasks[0].status,'open');
 reset();q=req('okay');await invoke(inbound,q);tasks.push(task('b'));r=await invoke(inbound,q);ok(r.body.includes('already handled'));eq(tasks[1].status,'open');
 const source=fs.readFileSync('js/tasks-data.js','utf8'),pure=source.slice(source.indexOf('export const validRecurrence'),source.indexOf('export const surfaceKey')).replaceAll('export ','');
 const appNext=Function(pure+';return nextOccurrence;')();
@@ -138,6 +140,19 @@ for (const query of ['', 'z=%2B&x=a%20b&x=a+b', 'b=%2f&a=%2F&empty=', 'z=2&a=1']
     }
   }
 }
-console.log('WhatsApp B1: '+count+' assertions passed (all providers mocked)');
+reset();
+const unlinkReq={method:'POST',headers:{authorization:'Bearer mock'},body:{action:'unlink'}};
+r=await invoke(linkAPI,{...unlinkReq,headers:{}});eq(r.statusCode,401);eq(links.length,1);
+r=await invoke(linkAPI,unlinkReq);eq(r.statusCode,200);eq(r.body.status,'unlinked');eq(links.length,0);
+r=await send('hello');ok(!r.body.includes('Mock chat reply'));eq(chatCalls.length,0);
+r=await send('ABC12345');eq(links.length,0);eq(chatCalls.length,0);
+r=await invoke(linkAPI,unlinkReq);eq(r.body.status,'unlinked');
+r=await invoke(linkAPI,{method:'POST',headers:{authorization:'Bearer mock'}});eq(r.body.status,'pending');const freshCode=r.body.code;ok(/^[A-F0-9]{8}$/.test(freshCode));
+r=await send('link '+freshCode);eq(links[0].status,'linked');eq(links[0].wa_id,'2348000000000');eq(chatCalls.length,0);
+r=await send('How far today?');eq(chatCalls.length,1);ok(r.body.includes('Mock chat reply'));
+r=await invoke(linkAPI,unlinkReq);eq(links.length,0);
+r=await invoke(linkAPI,{method:'POST',headers:{authorization:'Bearer mock'}});eq(links[0].status,'pending');await invoke(linkAPI,unlinkReq);eq(links.length,0);
+reset();r=await send('photo',{params:{NumMedia:'1'}});eq(chatCalls.length,0);ok(r.body.includes('not supported'));
+console.log('WhatsApp B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;Date.now=saved.now;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

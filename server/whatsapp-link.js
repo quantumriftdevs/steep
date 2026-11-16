@@ -14,6 +14,13 @@ module.exports=async(req,res)=>{
     const user=await r.json();
     if(!user.id) return res.status(401).json({error:'Unauthorized'});
     const db=database(conf), [old]=await db('whatsapp_links',{select:'*',user_id:'eq.'+user.id});
+    if(req.method==='POST' && req.body?.action==='unlink') {
+      if(old) {
+        const removed=await db('whatsapp_links',{user_id:'eq.'+user.id,id:'eq.'+old.id,revision:'eq.'+old.revision},'DELETE');
+        if(!removed.length) return res.status(409).json({error:'The link changed. Refresh Settings.'});
+      }
+      return res.status(200).json({status:'unlinked',sandbox});
+    }
     if(old?.status==='linked') return res.status(200).json({status:'linked',sandbox});
     if(req.method==='GET') return res.status(200).json({status:'unlinked',sandbox});
     if(old && Date.now()-Date.parse(old.updated_at)<30000) return res.status(429).json({error:'Please wait 30 seconds before getting a fresh code.'});

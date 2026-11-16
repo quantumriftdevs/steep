@@ -1,4 +1,5 @@
 const signature=require('./whatsapp-signature');
+const {chat}=require('./whatsapp-chat');
 const {config,database} = require('./whatsapp-db');
 const {isAffirmative} = require('./affirmative');
 const {snoozeMinutes,completion} = require('./whatsapp-tasks');
@@ -49,7 +50,11 @@ async function handler(req,res) {
       if(!changed.length) return reply('That task changed just now. Send tasks to see the latest.');
       return reply(minutes!==null ? 'A little breathing room 🌿 '+task.title+' — '+dueLabel(updates.due_at) : 'Done 🌿 '+task.title+(task.recurrence ? '\nNext: '+dueLabel(updates.due_at) : ' — one less thing to carry.'));
     }
-    return reply('I’m here 🌿 For now, reply okay to complete your latest due reminder, snooze 10 (or 2h) to move it, or tasks for your list. Full chat is coming.');
+    if(Number(params.NumMedia)>0 || !body) return reply('Text me your question for now 🌿 Images and voice messages are not supported here yet.');
+    const answer=await chat({db,link,wa,body,tasks:open,now});
+    if(answer) return reply(answer);
+    res.setHeader('Content-Type','text/xml; charset=utf-8');
+    return res.status(200).send('<Response></Response>');
   } catch { return res.status(503).json({error:'WhatsApp is temporarily unavailable. Please check Steep before trying again.'}); }
 }
 module.exports=handler;

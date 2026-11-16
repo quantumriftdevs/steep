@@ -8,8 +8,8 @@ async function run() {
   const now=Date.parse('2026-11-15T23:00:00+01:00');
   const env={NOTIFY_SECRET:'test-secret',SUPABASE_URL:'https://mock.invalid',SUPABASE_SERVICE_ROLE_KEY:'mock-key',NOTIFY_USER_EMAIL:'owner@example.invalid',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock-token',WHATSAPP_TO:'+2348000000000'};
   const task=(id,due=now,extra={})=>({id,user_id:'owner-id',title:'Make tea',status:'open',completed_at:null,due_at:new Date(due).toISOString(),...extra});
-  let tasks,log,calls,mode,failDB,failStage,clock=now;
-  function reset(rows=[task('a')]) {clock=now;tasks=rows; log=new Map(); calls=[];mode='ok';failDB=false;failStage='';process.env={...env};}
+  let linked,linkReads,tasks,log,calls,mode,failDB,failStage,clock=now;
+  function reset(rows=[task('a')]) {clock=now;linked=true;linkReads=0;tasks=rows; log=new Map(); calls=[];mode='ok';failDB=false;failStage='';process.env={...env};}
   const response=(status,data)=>({ok:status>=200&&status<300,status,json:async()=>data});
   global.fetch=async(url,opts={})=>{
     calls.push({url,opts});
@@ -33,6 +33,11 @@ async function run() {
     if(u.hostname!=='mock.invalid') throw Error('Unexpected live fetch blocked: '+u.hostname);
     if(failDB) return response(500,{});
     if(u.pathname==='/auth/v1/admin/users') return response(200,{users:[{id:'owner-id',email:env.NOTIFY_USER_EMAIL}]});
+    if(u.pathname==='/rest/v1/whatsapp_links') {
+      eq(p.get('user_id'),'eq.owner-id');eq(p.get('wa_id'),'eq.2348000000000');eq(p.get('status'),'eq.linked');
+      linkReads++;if(linked==='error')throw Error('mock');
+      return response(200,linked && !(linked==='race' && linkReads>1)?[{id:'link'}]:[]);
+    }
     if(u.pathname==='/rest/v1/tasks') {
       eq(p.get('user_id'),'eq.owner-id');
       let found=tasks.filter(t=>t.user_id==='owner-id');
@@ -58,6 +63,9 @@ async function run() {
   }
   const twilio=()=>calls.filter(c=>c.url.startsWith('https://api.twilio.com'));
   try {
+    reset();linked=false;eq((await invoke()).body.skipped,'whatsapp-unlinked');eq(twilio().length,0);eq(log.size,0);
+    reset();linked='error';eq((await invoke()).statusCode,503);eq(twilio().length,0);
+    reset();linked='race';eq((await invoke()).body.accepted,0);eq(twilio().length,0);eq([...log.values()][0].status,'failed');
     reset();for(const req of [{method:'GET',headers:{}},{method:'GET',query:{secret:'wrong'}},{method:'GET',query:{secret:['test-secret']}}]) {eq((await invoke(req)).statusCode,401);eq(calls.length,0);}
     delete process.env.NOTIFY_SECRET;eq((await invoke()).statusCode,401);eq(calls.length,0);
     reset();eq((await invoke({method:'DELETE',headers:{'x-notify-secret':'test-secret'}})).statusCode,405);eq(calls.length,0);

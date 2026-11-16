@@ -44,6 +44,8 @@ async function handler(req,res) {
       if (r.users.length<100) break;
     }
     if (!user?.id) return res.status(503).json({error:'recipient-account-not-found'});
+    const linked=async()=> (await db('/rest/v1/whatsapp_links?'+new URLSearchParams({user_id:'eq.'+user.id,status:'eq.linked',wa_id:'eq.'+phone,select:'id',limit:'1'}))).length>0;
+    if(!await linked()) return res.status(200).json({claimed:0,sent:0,failed:0,attempts:0,accepted:0,errors:[],skipped:'whatsapp-unlinked'});
     const all=[];
     for(let offset=0;;offset+=500) {
       const q=new URLSearchParams({select:'*',user_id:'eq.'+user.id,status:'eq.open',completed_at:'is.null',due_at:'lte.'+new Date(now).toISOString(),order:'due_at.asc,id.asc',limit:'500',offset:String(offset)});
@@ -64,6 +66,7 @@ async function handler(req,res) {
         // Recheck after the claim so deleted/completed/rescheduled rows cannot be sent from a stale snapshot.
         const fresh=await db('/rest/v1/tasks?'+new URLSearchParams({select:'*',id:'eq.'+task.id,user_id:'eq.'+user.id,due_at:'eq.'+event.due_at}));
         if(!dueTasks(fresh,now).length) { await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed'}); failed++; continue; }
+        if(!await linked()) { await db('/rest/v1/notify_log?'+q,'PATCH',{status:'failed'}); break; }
         attempts++;
         const due=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Lagos',weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(task.due_at));
         const body=new URLSearchParams({From:'whatsapp:+14155238886',To:'whatsapp:+'+phone,Body:'A gentle nudge from Steep 🌿\n'+task.title+'\nDue '+due+' (Lagos). One small step when you’re ready.'});
