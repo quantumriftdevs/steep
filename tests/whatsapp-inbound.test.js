@@ -34,8 +34,8 @@ global.fetch=async(url,opts={})=>{
 };
 function req(body,extra={}){
  const params={From:'whatsapp:+2348000000000',Body:body,MessageSid:'SM'+(++sid),ProfileName:'Mock',...extra.params};
- const r={method:'POST',url:'/api/whatsapp-inbound?x=a%20b',headers:{'x-forwarded-proto':'https','x-forwarded-host':'app.invalid'},body:params,...extra};delete r.params;
- const url='https://app.invalid'+(r.originalUrl||r.url);
+ const r={method:'POST',url:'/api/whatsapp-inbound?x=a%20b',headers:{'x-forwarded-proto':'https','x-forwarded-host':'steep-app-three.vercel.app'},body:params,...extra};delete r.params;
+ const url='https://steep-app-three.vercel.app'+(r.originalUrl||r.url);
  r.headers['x-twilio-signature']=createHmac('sha1',env.TWILIO_AUTH_TOKEN).update(url+Object.keys(params).sort().map(k=>k+params[k]).join('')).digest('base64');
  return r;
 }
@@ -47,7 +47,7 @@ for(const signature of ['',undefined,'bad','a'.repeat(28)]){reset();const q=req(
 reset();let q=req('tasks');q.body.Body='tampered';eq((await invoke(inbound,q)).statusCode,403);
 reset();q=req('tasks');q.body=new URLSearchParams(q.body).toString();eq((await invoke(inbound,q)).statusCode,200);
 reset();q=req('tasks',{originalUrl:'/api/whatsapp-inbound?z=%2B&x=2'});eq((await invoke(inbound,q)).statusCode,200);
-reset();q=req('tasks');delete q.headers['x-forwarded-host'];q.headers.host='app.invalid';eq((await invoke(inbound,q)).statusCode,200);
+reset();q=req('tasks');delete q.headers['x-forwarded-host'];q.headers.host='steep-app-three.vercel.app';eq((await invoke(inbound,q)).statusCode,200);
 reset();q=req('tasks');q.method='GET';eq((await invoke(inbound,q)).statusCode,405);
 for(const name of ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','TWILIO_AUTH_TOKEN']){reset();delete process.env[name];r=await send('okay');eq(r.statusCode,503);ok(r.body.missing.includes(name));eq(calls.length,0);}
 reset();links=[];r=await send('hello');ok(r.body.includes('Settings'));eq(tasks[0].status,'open');
@@ -105,6 +105,20 @@ for(const route of ['inbound','link']) {
 reset(); eq((await invoke(router,{method:'GET',url:'/api/whatsapp?__steep_wa=link',headers:{}})).statusCode,401); eq(calls.length,0);
 for(const url of ['/api/whatsapp','/api/whatsapp?__steep_wa=nope','/api/other']) {
   reset(); eq((await invoke(router,{method:'POST',url,headers:{}})).statusCode,404); eq(calls.length,0);
+}
+// Exercise the real inbound handler with urlencoded bodies after either rewrite shape.
+for (const query of ['', 'z=%2B&x=a%20b&x=a+b', 'b=%2f&a=%2F&empty=', 'z=2&a=1']) {
+  const original='/api/whatsapp-inbound'+(query?'?'+query:'');
+  for (const path of ['/api/whatsapp','/api/whatsapp-inbound']) {
+    for (const atEnd of [false,true]) {
+      reset(); const q=req('tasks',{url:original});
+      q.url=path+'?'+(atEnd?(query?query+'&':'')+'__steep_wa=inbound':'__steep_wa=inbound'+(query?'&'+query:''));
+      q.body=new URLSearchParams(q.body).toString();
+      eq((await invoke(router,q)).statusCode,200); eq(q.originalUrl,original);
+      q.headers['x-twilio-signature']='bad';
+      eq((await invoke(router,q)).statusCode,403);
+    }
+  }
 }
 console.log('WhatsApp B1: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;Date.now=saved.now;}
