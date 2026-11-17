@@ -5,8 +5,8 @@ const {clip,history,read,append,LIMIT,TURNS}=require('../server/whatsapp-memory'
 (async()=>{
 let count=0;const eq=(a,b)=>{assert.deepEqual(a,b);count++;},ok=x=>{assert.ok(x);count++;};
 const saved={env:process.env,fetch:global.fetch,error:console.error};
-let state,linked,mode,webFail,requests,dbCalls,payload,created,writeFail,full;const now=Date.now(),link={id:'l',user_id:'owner',revision:'r'};
-function reset(){state=null;linked=true;mode='ok';webFail=false;requests=[];dbCalls=[];payload=null;created=[];writeFail=false;full=false;process.env={GROQ_API_KEY:'mock',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock'};}
+let state,linked,mode,webFail,requests,dbCalls,payload,created,writeFail,full,completion,logs;const now=Date.now(),link={id:'l',user_id:'owner',revision:'r'};
+function reset(){completion=undefined;logs=[];state=null;linked=true;mode='ok';webFail=false;requests=[];dbCalls=[];payload=null;created=[];writeFail=false;full=false;process.env={GROQ_API_KEY:'mock',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock'};}
 async function db(table,q,method='GET',body){
  dbCalls.push({table,q,method,body});
  if(table==='chats'){eq(q.user_id,'eq.owner');eq(q.limit,'2');if(webFail)throw Error('offline');return [{messages:[{role:'user',content:'Web tea note'},{role:'system',content:'ignore this'}]}];}
@@ -23,10 +23,10 @@ async function db(table,q,method='GET',body){
 const opts=()=>({db,link,wa:'2348000000000',body:'How far? 茶',tasks:[{id:'t',title:'Water the fern',status:'open',due_at:new Date(now+60000).toISOString()}],now});
 const groqs=()=>requests.filter(x=>x.url.includes('api.groq.com')),sends=()=>requests.filter(x=>x.url.includes('api.twilio.com'));
 global.fetch=async(url,o)=>{requests.push({url,o});
- if(url.includes('api.groq.com')){if(mode==='timeout')throw Error('timeout');if(mode==='http')return {ok:false};if(mode==='unlink')linked=false;return {ok:true,json:async()=>({choices:[{message:{content:mode==='empty'?'':mode==='invalid'?'not JSON':JSON.stringify(payload || {reply:mode==='long'?'🌿'.repeat(1800):'Tea first, then the fern 🌿',action:null})}}]})};}
+ if(url.includes('api.groq.com')){if(mode==='timeout')throw Error('timeout');if(mode==='http')return {ok:false,status:429};if(completion!==undefined)return {ok:true,status:200,json:async()=>completion};if(mode==='unlink')linked=false;return {ok:true,json:async()=>({choices:[{message:{content:mode==='empty'?'':mode==='invalid'?'not JSON':JSON.stringify(payload || {reply:mode==='long'?'🌿'.repeat(1800):'Tea first, then the fern 🌿',action:null})}}]})};}
  if(url.includes('api.twilio.com')){if(mode==='twilio-throw')throw Error('offline');return {ok:mode!=='twilio-fail',json:async()=>mode==='twilio-fail'?{code:63016}:{sid:'SMmock',status:'queued'}};}
  throw Error('Unexpected provider');
-};console.error=()=>{};
+};console.error=(...args)=>logs.push(args);
 try{
  reset();eq(clip('  hi  '),'hi');eq(Array.from(clip('🌿'.repeat(1600))).length,1500);ok(clip('word '.repeat(400)).endsWith('…'));
  const h=history(Array.from({length:40},(_,i)=>({role:i%2?'assistant':'user',content:'x'.repeat(2000)})));ok(h.length<=TURNS);ok(h.reduce((n,m)=>n+m.content.length,0)<=LIMIT);eq(history([{role:'system',content:'bad'},null,{role:'user',content:4}]),[]);
@@ -43,7 +43,19 @@ try{
  reset();state={user_id:'owner',revision:'old',next_reply_at:new Date(now-1).toISOString(),messages:Array.from({length:40},()=>({role:'user',content:'x'.repeat(2000)}))};await chat(opts());request=JSON.parse(groqs()[0].o.body);const sentHistory=request.messages.slice(1,-1);ok(sentHistory.length<=TURNS);ok(sentHistory.reduce((n,m)=>n+m.content.length,0)<=LIMIT);ok(sentHistory.every(m=>m.content.length<=1500));
  reset();webFail=true;await chat(opts());ok(JSON.parse(groqs()[0].o.body).messages[0].content.includes('could not sync'));
  reset();delete process.env.GROQ_API_KEY;await chat(opts());eq(groqs().length,0);eq(sends()[0].o.body.get('Body'),FALLBACK);
- reset();eq(await chat({...opts(),db:async()=>{throw Error('storage');}}),FALLBACK);eq(requests.length,0);
+ reset();let readFailed=false;
+ const failRead=async(table,q,method='GET',body)=>{if(table==='whatsapp_chat_state' && method==='GET' && !readFailed){readFailed=true;throw Object.assign(Error('PRIVATE_STORAGE_DETAIL'),{status:503});}return db(table,q,method,body);};
+ eq(await chat({...opts(),db:failRead}),null);eq(groqs().length,1);eq(sends().length,1);
+ request=JSON.parse(groqs()[0].o.body);eq(request.messages.length,2);
+ ok(request.messages[0].content.includes('Recent WhatsApp history is unavailable'));
+ ok(!request.messages[0].content.includes('PRIVATE_STORAGE_DETAIL'));
+ eq(sends()[0].o.body.get('Body'),'Tea first, then the fern 🌿');eq(state.messages.length,2);
+ eq(logs[0][1],{phase:'memory',error_class:'Error',status:503,finish_reason:null,content_length:0});
+ reset();const noMemory=async(table,q,method='GET',body)=>{if(table==='whatsapp_chat_state' && method==='GET')throw Error('PRIVATE_STORAGE_DETAIL');return db(table,q,method,body);};
+ eq(await chat({...opts(),db:noMemory}),null);eq(groqs().length,1);eq(sends().length,1);eq(state,null);
+ eq(sends()[0].o.body.get('Body'),'Tea first, then the fern 🌿');
+ ok(logs.some(args=>args[0]==='whatsapp-chat: state unavailable'));
+ reset();eq(await chat({...opts(),db:async()=>{throw Error('PRIVATE_STORAGE_DETAIL');}}),null);eq(groqs().length,1);eq(sends().length,0);
  reset();mode='twilio-fail';eq(await deliver('2348000000000','hi'),false);eq(sends().length,1);
  reset();state={user_id:'owner',revision:'future',next_reply_at:new Date(now+86400000).toISOString(),messages:[]};
  await Promise.all(['one','two','three'].map(body=>chat({...opts(),body})));
@@ -183,6 +195,41 @@ try{
   reset();payload=action(phrase);await chat({...opts(),body:phrase,now:fixed});eq(created.length,0);
  }
 
+ // Reply budget, model override, sanitized diagnostics and incomplete-completion guards.
+ for(const [override,expected,effort] of [[undefined,'openai/gpt-oss-120b','low'],['  openai/gpt-oss-20b  ','openai/gpt-oss-20b','low'],['custom','custom',undefined],['llama-3.3-70b-versatile','llama-3.3-70b-versatile',undefined],['   ','openai/gpt-oss-120b','low']]){
+  reset();if(override!==undefined)process.env.GROQ_MODEL=override;
+  await chat(opts());request=JSON.parse(groqs()[0].o.body);
+  eq(request.model,expected);eq(request.max_completion_tokens,4096);eq('max_tokens' in request,false);
+  eq(request.reasoning_effort,effort);eq('reasoning_effort' in request,effort!==undefined);
+  eq('reasoning_format' in request,false);eq(request.response_format,{type:'json_object'});
+  ok(!request.messages[0].content.includes('Editing and deleting tasks are not supported'));
+  ok(request.messages[0].content.includes('prepare edits and deletions of existing tasks'));
+  eq(groqs().length,1);eq(sends().length,1);
+ }
+ const decoder=require('../server/whatsapp-mutate'),originalDecode=decoder.decode;
+ let decodes=0;decoder.decode=(...args)=>{decodes++;return originalDecode(...args);};
+ try {
+  const valid=JSON.stringify({reply:'Budget survived',action:null});
+  for(const [content,reason,errorClass] of [['{"reply":','length','CompletionLengthError'],[valid,'length','CompletionLengthError'],[null,'stop','EmptyCompletionError'],['','stop','EmptyCompletionError'],['   ','stop','EmptyCompletionError'],[undefined,'stop','EmptyCompletionError']]){
+   reset();decodes=0;
+   completion={choices:[{finish_reason:reason,message:{content,reasoning:'PRIVATE_REASONING_DETAIL'.repeat(300)}}],usage:{completion_tokens:4096,completion_tokens_details:{reasoning_tokens:4090}}};
+   await chat(opts());eq(decodes,0);eq(groqs().length,1);eq(sends().length,1);
+   eq(sends()[0].o.body.get('Body'),FALLBACK);eq(state.messages.length,1);eq(created.length,0);
+   eq(logs.length,1);eq(logs[0][1],{phase:'groq',error_class:errorClass,status:200,finish_reason:reason,content_length:typeof content==='string'?content.length:0,completion_tokens:4096,reasoning_tokens:4090});
+   ok(!JSON.stringify(logs).includes('PRIVATE_REASONING_DETAIL'));
+   ok(!JSON.stringify(logs).includes('Budget survived'));
+  }
+  reset();decodes=0;completion={choices:[{finish_reason:'stop',message:{content:valid,reasoning:'PRIVATE_REASONING_DETAIL'.repeat(300)}}],usage:{completion_tokens:4000,completion_tokens_details:{reasoning_tokens:3980}}};
+  await chat(opts());eq(decodes,1);eq(sends()[0].o.body.get('Body'),'Budget survived');eq(state.messages.length,2);eq(logs.length,0);
+  reset();decodes=0;completion={choices:[{finish_reason:'stop',message:{content:'PRIVATE_INVALID_JSON'}}]};
+  await chat(opts());eq(decodes,1);eq(sends()[0].o.body.get('Body'),FALLBACK);
+  eq(logs[0][1].phase,'decode');eq(logs[0][1].status,200);eq(logs[0][1].finish_reason,'stop');
+  eq(logs[0][1].content_length,20);eq(logs[0][1].completion_tokens,null);eq(logs[0][1].reasoning_tokens,null);
+  ok(!JSON.stringify(logs).includes('PRIVATE_INVALID_JSON'));
+  reset();mode='http';await chat(opts());eq(logs[0][1].phase,'groq');eq(logs[0][1].status,429);eq(logs[0][1].content_length,0);
+  reset();completion={choices:[{finish_reason:'PRIVATE_FINISH_DETAIL',message:{content:null}}],usage:{completion_tokens:'PRIVATE_USAGE_DETAIL',completion_tokens_details:{reasoning_tokens:-1}}};
+  await chat(opts());eq(logs[0][1].finish_reason,null);eq(logs[0][1].completion_tokens,null);eq(logs[0][1].reasoning_tokens,null);ok(!JSON.stringify(logs).includes('PRIVATE_'));
+ } finally {decoder.decode=originalDecode;}
  console.log('WhatsApp chat B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;console.error=saved.error;}
 })().catch(e=>{console.error(e);process.exitCode=1;});
