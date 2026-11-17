@@ -159,6 +159,15 @@ for(const text of ['okay','done','tasks','snooze 10','snooze 2h']){reset();if(te
 for(const status of ['pending','unlinked']){reset();links[0].status=status;await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,0);ok(!calls.some(c=>c.opts.method==='POST' && c.url.includes('/tasks?')));}
 reset();links=[];await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,0);
 reset();await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,1);eq(chatCalls[0].link.user_id,'owner');eq(chatCalls[0].body,'remind me to call mom tomorrow 6pm');
+
+// Editing/deleting remains in free chat, after all existing commands.
+for(const text of ['move call mom to Friday 4pm','change call mom to 7pm','rename call mom to call mum','delete the call mom task','cancel my reminder to call mom','make watering the plants weekly instead of daily','abeg shift call mom go Friday by 4']){
+ reset();classification='OTHER';const before=structuredClone(tasks);await send(text);eq(chatCalls.length,1);eq(chatCalls[0].body,text);eq(tasks,before);
+}
+for(const text of ['okay','tasks','snooze 10']){reset();classification='YES';await send(text);eq(chatCalls.length,0);}
+for(const text of ['delete the call mom task','rename call mom to call mum']){reset();links=[];await send(text);eq(chatCalls.length,0);eq(tasks.length,1);ok(!calls.some(c=>c.opts.method==='DELETE'));}
+
+for(const status of ['pending','unlinked']){reset();links[0].status=status;await send('delete the call mom task');eq(chatCalls.length,0);eq(tasks.length,1);ok(!calls.some(c=>c.opts.method==='DELETE'));}
 console.log('WhatsApp B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;Date.now=saved.now;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

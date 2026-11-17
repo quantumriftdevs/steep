@@ -1,6 +1,8 @@
 const {read,append,clip,history}=require('./whatsapp-memory');
 const context=require('./whatsapp-context');
 const creation=require('./whatsapp-create');
+const mutation=require('./whatsapp-mutate');
+const editor=require('./whatsapp-edit');
 const FALLBACK='I lost my train of thought for a moment 🌿 Please try that again shortly.';
 async function deliver(to,text) {
   try {
@@ -21,23 +23,27 @@ async function chat({db,link,wa,body,tasks,now}) {
   try { state=await read(db,link.user_id); }
   catch {console.error('whatsapp-chat: memory unavailable');return FALLBACK;}
   const user={role:'user',content:clip(body)};
-  let answer=FALLBACK, generated=false, action;
+  let answer=FALLBACK, generated=false, action, edit;
   try {
     const key=(process.env.GROQ_API_KEY || '').trim();
     if(!key) throw Error('configuration');
-    const system=await context(db,link.user_id,tasks,now)+'\n'+creation.PROMPT;
+    const system=await context(db,link.user_id,tasks,now)+'\n'+mutation.PROMPT;
     const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
       body:JSON.stringify({model:process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-120b',messages:[{role:'system',content:system},...history(state.messages),user],response_format:{type:'json_object'},max_tokens:1000}),signal:AbortSignal.timeout(10000)});
     if(!r.ok) throw Error('provider');
     const data=await r.json();
-    const decoded=creation.decode(data?.choices?.[0]?.message?.content,body,now);
-    answer=clip(decoded.reply);action=decoded.task;
+    const decoded=mutation.decode(data?.choices?.[0]?.message?.content,body,now);
+    answer=clip(decoded.reply);action=decoded.task;edit=decoded.mutation;
     if(!answer) throw Error('empty');generated=true;
   } catch {answer=FALLBACK;console.error('whatsapp-chat: reply unavailable');}
   try {
     const [live]=await db('whatsapp_links',{user_id:'eq.'+link.user_id,id:'eq.'+link.id,status:'eq.linked',wa_id:'eq.'+wa,revision:'eq.'+link.revision,select:'id'});
     if(!live) return null;
+    if(edit) {
+      try {answer=clip(await editor.save(db,link.user_id,edit,now));}
+      catch {answer='Sorry, I could not check that task. Nothing changed. Please try again shortly 🌿';}
+    }
     if(action) {
       try { answer=clip(await creation.save(db,link.user_id,action)+'\n'+clip(answer,700)); }
       catch {answer='I could not save that task just now. Please try again shortly 🌿';}

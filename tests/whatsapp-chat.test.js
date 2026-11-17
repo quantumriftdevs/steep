@@ -100,6 +100,89 @@ try{
  reset();full=true;payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);ok(sends()[0].o.body.get('Body').includes('500 open'));
  reset();mode='unlink';payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);eq(sends().length,0);
 
+
+ // Existing-task edits: all Groq, storage and delivery boundaries remain mocked.
+ const editAPI=require('../server/whatsapp-edit'),mutate=require('../server/whatsapp-mutate');
+ const original={id:'edit-1',user_id:'owner',title:'call mom',notes:'keep notes',status:'open',completed_at:null,due_at:'2026-11-19T15:00:00.000Z',recurrence:null,source:'manual'};
+ const editPayload=(request,changes={},intent='edit',target='call mom')=>({reply:'Tea first',action:{intent,request,target,changes}});
+ let editRows,editWrites,editFailure,editRace;
+ const editDB=async(table,q,method='GET',body)=>{
+  if(table!=='tasks')return db(table,q,method,body);
+  eq(q.user_id,'eq.owner');eq(q.status,'eq.open');
+  if(method==='GET')return structuredClone(editRows);
+  editWrites.push({q,method,body});if(editFailure)throw Error('storage');if(editRace)return [];
+  const row=editRows.find(t=>t.id===q.id.slice(3));
+  eq(q.completed_at,'is.null');eq(q.title,'eq.'+row.title);eq(q.due_at,'eq.'+row.due_at);eq(q.recurrence,row.recurrence?'eq.'+row.recurrence:'is.null');
+  if(method==='DELETE'){editRows=[];return [row];}Object.assign(row,body);return [row];
+ };
+ const runEdit=async(phrase,changes={},intent='edit',target='call mom',taskTitle='call mom')=>{
+  reset();editRows=[{...structuredClone(original),title:taskTitle}];editWrites=[];editFailure=false;editRace=false;
+  payload=editPayload(phrase,changes,intent,target);await chat({...opts(),db:editDB,body:phrase,now:fixed});return sends()[0]?.o.body.get('Body');
+ };
+ for(const phrase of ['rename call mom to call mum','abeg change call mom name to call mum','call mom: rename am to call mum']){
+  const reply=await runEdit(phrase,{title:'call mum'});eq(editRows[0].title,'call mum');eq(editRows[0].notes,'keep notes');eq(editRows[0].status,'open');eq(editRows[0].source,'manual');eq(editWrites[0].body,{title:'call mum'});ok(reply.includes('renamed “call mom” to “call mum”'));eq(groqs().length,1);
+ }
+ for(const phrase of ['move call mom to Friday 4pm','abeg shift call mom go Friday by 4']){
+  const reply=await runEdit(phrase,{when:'Friday 4pm'});eq(editRows[0].due_at,'2026-11-20T15:00:00.000Z');ok(reply.includes('20 Nov 2026, 16:00 (Lagos)'));
+ }
+ await runEdit('change call mom to 7pm',{when:'7pm'});eq(editRows[0].due_at,'2026-11-19T18:00:00.000Z');
+ for(const recurrence of ['daily','weekdays','weekly','weekly:1','weekly:7','biweekly','monthly','monthly:31']){
+  const reply=await runEdit('make call mom repeat '+recurrence,{recurrence});ok(reply.includes('repeats'));ok(editRows[0].recurrence);ok(editRows[0].due_at);eq(editRows[0].notes,original.notes);
+ }
+ let reply=await runEdit('make watering the plants weekly instead of daily',{recurrence:'weekly'},'edit','watering the plants','watering the plants');eq(editRows[0].recurrence,'weekly:4');
+ await runEdit('stop call mom repeating',{recurrence:null});eq(editRows[0].recurrence,null);
+ reply=await runEdit('rename call mom to call mum and move it to Friday',{title:'call mum',when:'Friday 4pm'});eq(editRows[0].title,'call mum');eq(editRows[0].due_at,'2026-11-20T15:00:00.000Z');eq(editWrites.length,1);ok(reply.includes('renamed'));ok(reply.includes('due'));
+ for(const phrase of ['delete the call mom task','cancel my reminder to call mom','abeg comot call mom reminder']){
+  reply=await runEdit(phrase,{},'delete');eq(editRows,[]);eq(editWrites[0].method,'DELETE');eq(editWrites[0].body,undefined);eq(reply,'Deleted “call mom”. 🌿');eq(created.length,0);
+ }
+ const decoded=(phrase,changes={},intent='edit',request=phrase)=>mutate.decode(JSON.stringify(editPayload(request,changes,intent)),phrase,fixed);
+ for(const phrase of ['I should delete that task someday','what if I delete call mom','do not delete call mom','he said delete call mom','how can I delete call mom?','“delete call mom”','`delete call mom`','can you explain how to delete call mom?']){
+  const d=decoded(phrase,{},'delete',phrase);eq(d.mutation,undefined);
+ }
+ for(const phrase of ['what should change?','maybe move call mom to Friday','I might rename call mom']){reset();await chat({...opts(),db:editDB,body:phrase});eq(created.length,0);}
+ for(const changes of [{title:''},{title:'x'.repeat(201)},{when:42},{due_at:'2026-02-30T18:00:00+01:00'},{recurrence:'hourly'},{}])eq(decoded('edit call mom',changes).mutation,undefined);
+ for(const a of [{intent:'edit',request:'elsewhere',target:'call mom',changes:{title:'mum'}},{intent:'edit',request:'edit call mom',target:'call mom',changes:{status:'done'}}]){assert.throws(()=>mutate.decode(JSON.stringify({reply:'hi',action:a}),'edit call mom',fixed));count++;}
+ eq(editAPI.candidates('CALL MOM!',[original]).length,1);eq(editAPI.candidates('mom',[original]).length,1);
+ eq(editAPI.candidates('call mom',[original,{...original,id:'other',title:'call mom later'}]).map(t=>t.id),['edit-1']);
+ eq(editAPI.candidates('call',[original,{...original,id:'other',title:'call dad'}]).length,2);
+ for(const patch of [{status:'done'},{completed_at:'2026-11-17T10:00Z'},{deleted_at:'x'},{tombstone:true},{is_deleted:true}])eq(editAPI.candidates('call mom',[{...original,...patch}]),[]);
+ for(const kind of ['none','ambiguous','duplicate','race','failure','unlink','timeout','invalid']){
+  reset();editRows=kind==='none'?[]:[structuredClone(original)];if(kind==='ambiguous'||kind==='duplicate')editRows.push({...original,id:'two',title:kind==='duplicate'?'call mom':'call dad'});
+  editWrites=[];editFailure=kind==='failure';editRace=kind==='race';if(['unlink','timeout','invalid'].includes(kind))mode=kind;
+  const phrase='delete call mom';payload=editPayload(phrase,{},'delete',kind==='ambiguous'?'call':'call mom');
+  await chat({...opts(),db:editDB,body:phrase,now:fixed});
+  if(['none','ambiguous','duplicate','unlink','timeout','invalid'].includes(kind))eq(editWrites.length,0);
+  eq(created.length,0);if(kind==='unlink')eq(sends().length,0);else {const text=sends()[0].o.body.get('Body');ok(!text.includes('Deleted'));if(kind==='none')ok(text.includes('cannot find'));if(['ambiguous','duplicate'].includes(kind))ok(text.includes('Which task'));if(kind==='failure')ok(text.includes('could not confirm'));}
+ }
+ // Scheduling semantics share the existing creation normalizer and rolling helper.
+ const webSource=require('node:fs').readFileSync(require.resolve('../js/tasks-data.js'),'utf8');
+ const rolling=webSource.slice(webSource.indexOf('export const validRecurrence'),webSource.indexOf('export const surfaceKey'));
+
+ const webNext=new Function(rolling.replace(/export /g,'')+';return nextOccurrence;')();
+ for(const recurrence of ['daily','weekdays','weekly:1','weekly:7','biweekly','monthly','monthly:31']){
+  for(const start of ['2026-01-31T15:00:00.000Z','2026-11-19T15:00:00.000Z']){
+   const changed=editAPI.updates({...original,due_at:start},{recurrence},fixed);
+   const completed=require('../server/whatsapp-tasks').completion({...original,...changed},fixed);
+   eq(completed,{status:'open',completed_at:null,due_at:webNext(changed.due_at,changed.recurrence,fixed)});
+  }
+ }
+ // Schedule rejection never reaches persistence; dates/notes/source remain intact.
+ reply=await runEdit('move call mom to sometime',{when:'sometime'});eq(editWrites.length,0);eq(editRows[0],original);ok(reply.includes('Nothing changed'));
+ reply=await runEdit('change call mom recurrence to hourly',{recurrence:'hourly'});eq(editWrites.length,0);ok(reply.includes('repeat pattern'));
+ // Owner reads and write receipt happen before the success confirmation is sent.
+ reset();editRows=[structuredClone(original)];editWrites=[];editFailure=false;editRace=false;payload=editPayload('rename call mom',{title:'mum'});
+ let writesBeforeSend=false;const ordered=async(...args)=>{if(args[2]==='PATCH'){eq(sends().length,0);writesBeforeSend=true;}return editDB(...args);};
+ await chat({...opts(),db:ordered,body:'rename call mom',now:fixed});ok(writesBeforeSend);ok(sends()[0].o.body.get('Body').includes('renamed'));
+
+ for(const recurrence of ['daily','weekdays','weekly:1','biweekly','monthly:31']){
+  const u=editAPI.updates({...original,recurrence},{when:'Friday 4pm'},fixed);ok(u);eq(u.title,undefined);ok(Number.isFinite(Date.parse(u.due_at)));
+ }
+
+
+ for(const phrase of ['move call mom to Friday 4pm','delete the call mom task','abeg comot call mom task']){
+  reset();payload=action(phrase);await chat({...opts(),body:phrase,now:fixed});eq(created.length,0);
+ }
+
  console.log('WhatsApp chat B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;console.error=saved.error;}
 })().catch(e=>{console.error(e);process.exitCode=1;});
