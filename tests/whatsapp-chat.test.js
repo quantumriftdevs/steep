@@ -5,12 +5,13 @@ const {clip,history,read,append,LIMIT,TURNS}=require('../server/whatsapp-memory'
 (async()=>{
 let count=0;const eq=(a,b)=>{assert.deepEqual(a,b);count++;},ok=x=>{assert.ok(x);count++;};
 const saved={env:process.env,fetch:global.fetch,error:console.error};
-let state,linked,mode,webFail,requests,dbCalls;const now=Date.now(),link={id:'l',user_id:'owner',revision:'r'};
-function reset(){state=null;linked=true;mode='ok';webFail=false;requests=[];dbCalls=[];process.env={GROQ_API_KEY:'mock',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock'};}
+let state,linked,mode,webFail,requests,dbCalls,payload,created,writeFail,full;const now=Date.now(),link={id:'l',user_id:'owner',revision:'r'};
+function reset(){state=null;linked=true;mode='ok';webFail=false;requests=[];dbCalls=[];payload=null;created=[];writeFail=false;full=false;process.env={GROQ_API_KEY:'mock',TWILIO_ACCOUNT_SID:'ACmock',TWILIO_AUTH_TOKEN:'mock'};}
 async function db(table,q,method='GET',body){
  dbCalls.push({table,q,method,body});
  if(table==='chats'){eq(q.user_id,'eq.owner');eq(q.limit,'2');if(webFail)throw Error('offline');return [{messages:[{role:'user',content:'Web tea note'},{role:'system',content:'ignore this'}]}];}
  if(table==='whatsapp_links'){eq(q.user_id,'eq.owner');eq(q.revision,'eq.r');return linked?[{id:'l'}]:[];}
+ if(table==='tasks'){if(method==='POST'){if(writeFail)throw Error('storage');created.push(body);return [body];}return full?Array.from({length:500},(_,id)=>({id})):[];}
  if(table!=='whatsapp_chat_state')throw Error('Unknown table');
  if(method==='GET')return state?[structuredClone(state)]:[];
  if(method==='POST'){if(state)return [];state=structuredClone(body);return [state];}
@@ -22,7 +23,7 @@ async function db(table,q,method='GET',body){
 const opts=()=>({db,link,wa:'2348000000000',body:'How far? 茶',tasks:[{id:'t',title:'Water the fern',status:'open',due_at:new Date(now+60000).toISOString()}],now});
 const groqs=()=>requests.filter(x=>x.url.includes('api.groq.com')),sends=()=>requests.filter(x=>x.url.includes('api.twilio.com'));
 global.fetch=async(url,o)=>{requests.push({url,o});
- if(url.includes('api.groq.com')){if(mode==='timeout')throw Error('timeout');if(mode==='http')return {ok:false};if(mode==='unlink')linked=false;return {ok:true,json:async()=>({choices:[{message:{content:mode==='empty'?'':mode==='long'?'🌿'.repeat(1800):'Tea first, then the fern 🌿'}}]})};}
+ if(url.includes('api.groq.com')){if(mode==='timeout')throw Error('timeout');if(mode==='http')return {ok:false};if(mode==='unlink')linked=false;return {ok:true,json:async()=>({choices:[{message:{content:mode==='empty'?'':mode==='invalid'?'not JSON':JSON.stringify(payload || {reply:mode==='long'?'🌿'.repeat(1800):'Tea first, then the fern 🌿',action:null})}}]})};}
  if(url.includes('api.twilio.com')){if(mode==='twilio-throw')throw Error('offline');return {ok:mode!=='twilio-fail',json:async()=>mode==='twilio-fail'?{code:63016}:{sid:'SMmock',status:'queued'}};}
  throw Error('Unexpected provider');
 };console.error=()=>{};
@@ -62,6 +63,43 @@ try{
  reset();let broken=false;
  const failSave=async(table,q,method,body)=>{if(table==='whatsapp_chat_state' && method==='POST'){broken=true;throw Error('storage');}return db(table,q,method,body);};
  eq(await chat({...opts(),db:failSave}),null);ok(broken);eq(sends().length,1);eq(groqs().length,1);
+
+ const {decode}=require('../server/whatsapp-create');
+ const fixed=Date.parse('2026-11-17T10:00:00Z');
+ const action=(request,more={})=>({reply:'Tea first 🌿',action:{intent:'create',request,title:'call mom',when:'tomorrow 6pm',due_at:null,recurrence:null,...more}});
+ const rows=(request,more={},at=fixed)=>decode(JSON.stringify(action(request,more)),request,at);
+ for(const [when,due] of [['today 6pm','2026-11-17T17:00:00.000Z'],['tomorrow 6pm','2026-11-18T17:00:00.000Z'],['tomorrow 18:00','2026-11-18T17:00:00.000Z'],['friday 6pm','2026-11-20T17:00:00.000Z'],['tomorrow','2026-11-18T08:00:00.000Z'],['6pm','2026-11-17T17:00:00.000Z'],['tonight','2026-11-17T19:00:00.000Z']]) eq(rows('remind me to call mom',{when}).task.due_at,due);
+ eq(rows('remind me to call mom',{when:'tomorrow 6pm'},Date.parse('2026-11-17T23:30Z')).task.due_at,'2026-11-19T17:00:00.000Z');
+ eq(rows('remind me to call mom',{when:null}).task.due_at,null);
+ eq(rows('remind me to call mom',{when:'December 4 2026 18:00',due_at:'2026-12-04T18:00:00+01:00'}).task.due_at,'2026-12-04T17:00:00.000Z');
+ eq(rows('remind me to call mom',{when:'unparseable date',due_at:'2026-12-04T18:00:00+01:00'}).task.due_at,'2026-12-04T17:00:00.000Z');
+ for(const recurrence of ['daily','weekdays','weekly:5','biweekly','monthly','monthly:31']){const r=rows('remind me to call mom',{recurrence});ok(r.task);ok(Number.isFinite(Date.parse(r.task.due_at)));ok(r.task.recurrence);}
+ eq(rows('remind me to call mom',{when:'saturday 6pm',recurrence:'weekdays'}).task.due_at,'2026-11-23T17:00:00.000Z');
+ eq(rows('remind me to call mom',{recurrence:'monthly'}).task.recurrence,'monthly:18');
+ eq(rows('remind me to call mom',{when:'unparsed',due_at:'2027-01-18T18:00:00+01:00',recurrence:'monthly:31'}).task.due_at,'2027-01-31T17:00:00.000Z');
+ eq(rows('remind me to call mom',{recurrence:'monthly:31'}).task.due_at,'2026-11-30T17:00:00.000Z');
+ for(const more of [{title:null},{title:''},{title:'x'.repeat(201)},{intent:'clarify'},{when:'unclear',due_at:null},{when:'',due_at:null},{when:17},{due_at:'2026-02-30T18:00:00+01:00'},{when:null,due_at:'2026-12-04T18:00:00Z'},{when:null,recurrence:'daily'}]){const r=rows('remind me',more);eq(r.task,undefined);ok(r.reply.includes('?'));}
+ for(const recurrence of ['unsupported','hourly','weekly:8','monthly:32',undefined]){const r=rows('remind me',{recurrence});eq(r.task,undefined);ok(r.reply.includes('repeat pattern'));}
+ for(const bad of ['oops','{}','[]',JSON.stringify({reply:'hi',action:{intent:'delete'}})]){assert.throws(()=>decode(bad,'hi',fixed));count++;}
+ assert.throws(()=>decode(JSON.stringify(action('not in body')),'hello',fixed));count++;
+ for(const phrase of ["what's next?",'what should I do next?','maybe remind me later','he said remind me to call','do not remind me to call mom','delete my task','rename call mom']){reset();await chat({...opts(),body:phrase});eq(created.length,0);eq(groqs().length,1);}
+ for(const phrase of ['remind me to call mom tomorrow 6pm','abeg no let me forget to call mama tomorrow by 6','omo add call mom to my tasks tomorrow 18:00','How far? remind me to call mom tomorrow 6pm']){
+  reset();payload=action(phrase);await chat({...opts(),body:phrase,now:fixed});eq(created.length,1);eq(groqs().length,1);eq(sends().length,1);
+  const row=created[0];ok(/^[a-f0-9-]{36}$/.test(row.id));eq(row.user_id,'owner');eq(row.title,'call mom');eq(row.notes,null);eq(row.status,'open');eq(row.source,'chat');eq(row.due_at,'2026-11-18T17:00:00.000Z');
+  const fs=require('node:fs'),src=fs.readFileSync(require.resolve('../js/tasks-data.js'),'utf8');
+  const taskFields=new Function(src.slice(src.indexOf('export function taskFields'),src.indexOf('export function addTask')).replace('export ','')+';return taskFields;')();
+  eq(row,{id:row.id,user_id:'owner',...taskFields(payload.action?{title:'call mom',due_at:row.due_at}:{}),status:'open',source:'chat'});
+  const reply=sends()[0].o.body.get('Body');ok(reply.includes('Done — added “call mom”'));ok(reply.includes('18 Nov 2026, 18:00 (Lagos)'));ok(reply.includes('Tea first'));
+  eq(JSON.parse(groqs()[0].o.body).response_format,{type:'json_object'});
+ }
+ reset();payload=action('remind me');payload.action.title=null;await chat({...opts(),body:'remind me'});eq(created.length,0);ok(sends()[0].o.body.get('Body').includes('What should I remind'));
+ reset();payload=action('remind me');payload.action.recurrence='unsupported';await chat({...opts(),body:'remind me'});eq(created.length,0);ok(sends()[0].o.body.get('Body').includes('repeat pattern'));
+ reset();payload=action('remind me');payload.action.recurrence='daily';await chat({...opts(),body:'remind me'});eq(created[0].recurrence,'daily');ok(sends()[0].o.body.get('Body').includes('repeats daily'));
+ for(const failure of ['timeout','http','invalid','empty']){reset();mode=failure;payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);eq(sends()[0].o.body.get('Body'),FALLBACK);}
+ reset();writeFail=true;payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);ok(sends()[0].o.body.get('Body').includes('could not confirm'));ok(!sends()[0].o.body.get('Body').includes('Done — added'));
+ reset();full=true;payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);ok(sends()[0].o.body.get('Body').includes('500 open'));
+ reset();mode='unlink';payload=action('remind me');await chat({...opts(),body:'remind me'});eq(created.length,0);eq(sends().length,0);
+
  console.log('WhatsApp chat B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;console.error=saved.error;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

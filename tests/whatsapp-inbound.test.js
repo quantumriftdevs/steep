@@ -153,6 +153,12 @@ r=await send('How far today?');eq(chatCalls.length,1);ok(r.body.includes('Mock c
 r=await invoke(linkAPI,unlinkReq);eq(links.length,0);
 r=await invoke(linkAPI,{method:'POST',headers:{authorization:'Bearer mock'}});eq(links[0].status,'pending');await invoke(linkAPI,unlinkReq);eq(links.length,0);
 reset();r=await send('photo',{params:{NumMedia:'1'}});eq(chatCalls.length,0);ok(r.body.includes('not supported'));
+
+// Creation lives only beyond the existing command, signature and linking gates.
+for(const text of ['okay','done','tasks','snooze 10','snooze 2h']){reset();if(text==='done')classification='YES';await send(text);eq(chatCalls.length,0);ok(!calls.some(c=>c.opts.method==='POST' && c.url.includes('/tasks?')));}
+for(const status of ['pending','unlinked']){reset();links[0].status=status;await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,0);ok(!calls.some(c=>c.opts.method==='POST' && c.url.includes('/tasks?')));}
+reset();links=[];await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,0);
+reset();await send('remind me to call mom tomorrow 6pm');eq(chatCalls.length,1);eq(chatCalls[0].link.user_id,'owner');eq(chatCalls[0].body,'remind me to call mom tomorrow 6pm');
 console.log('WhatsApp B2: '+count+' assertions passed (all providers mocked)');
 }finally{process.env=saved.env;global.fetch=saved.fetch;Date.now=saved.now;}
 })().catch(e=>{console.error(e);process.exitCode=1;});
