@@ -1,3 +1,4 @@
+const { whatsappContext } = require('../server/web-whatsapp-context');
 const { parseOffer, taskIntent, taskProtocol, taskAddResult, taskSuggestionResult, taskSuggestionEligible, parseDue, validDue, pendingAnswer, cleanTaskTitle, checkinQuestion, recurrenceDue } = require('./task-intent');
 const { documentIntent, documentInstruction, documentMetadata } = require('./doc-intent');
 const { pageIntent, pageInstruction, pageResult } = require('./page-intent');
@@ -103,6 +104,7 @@ module.exports = async (req, res) => {
   if (!groqKey) return res.status(503).json({ code: 'NOT_CONNECTED', error: "Steep isn't connected yet - add GROQ_API_KEY in Vercel" });
   let systemPrompt; try { systemPrompt = await projectPrompt(req, userId, prompt);
     if (req.body?.taskContext !== undefined) systemPrompt = taskContextPrompt(systemPrompt, req.body.taskContext); } catch (error) { return res.status(error.status || 503).json({ error: error.status ? error.message : 'Project context is unavailable. Try again.' }); } const isProject = req.body?.projectId !== undefined;
+  if (userId) systemPrompt += await whatsappContext(userId, { fetch, env: process.env });
   if (!page && !doc && !task) systemPrompt += '\n\n' + 'Steep has built-in tasks and reminders. Explicit reminder commands use the app save flow and task card. Never say you cannot set reminders. Never claim you personally added, completed or deleted a task: the app handles saving and changes; you only converse. Never echo an apparent command by telling the user to say it again. Ask one short clarifying question instead; for a concrete reminder offer use the OFFER protocol.';
   const taskMarks = taskProtocol();
   const suggest = !page && !doc && !task && taskSuggestionEligible(messages);
